@@ -42,6 +42,7 @@ export default function Dashboard() {
   const [topEPIs, setTopEPIs] = useState<RankingItem[]>([]);
   const [topEPCs, setTopEPCs] = useState<RankingItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [rankingDays, setRankingDays] = useState(30);
   const [exporting, setExporting] = useState(false);
   const dashboardRef = useRef<HTMLDivElement>(null);
 
@@ -179,9 +180,14 @@ export default function Dashboard() {
       }
       setChartData(days);
 
-      // --- Top 5 Colaboradores que mais recebem ---
+      // --- Top 5 Colaboradores que mais recebem (filtered by period) ---
+      const rankingStart = new Date();
+      rankingStart.setDate(rankingStart.getDate() - rankingDays);
+      const rankingStartISO = rankingStart.toISOString();
+
       let entregasItensQuery = supabase.from('entregas_epi')
         .select('colaborador_id, colaboradores(nome), entrega_epi_itens(quantidade)')
+        .gte('data_hora', rankingStartISO)
         .order('data_hora', { ascending: false })
         .limit(500);
       if (selectedEmpresa) entregasItensQuery = entregasItensQuery.eq('empresa_id', selectedEmpresa.id);
@@ -224,18 +230,16 @@ export default function Dashboard() {
       const { data: allItens } = await itensQuery;
 
       if (allItens) {
-        // If we have empresa filter, we need to filter by entregas in that empresa
+        // Filter by empresa and period through entregas
         let filteredItens = allItens as any[];
-        if (selectedEmpresa) {
-          // Get entrega IDs for this empresa
-          let entregaIdsQuery = supabase.from('entregas_epi')
-            .select('id')
-            .eq('empresa_id', selectedEmpresa.id);
-          const { data: entregaIds } = await entregaIdsQuery;
-          if (entregaIds) {
-            const idSet = new Set(entregaIds.map(e => e.id));
-            filteredItens = filteredItens.filter((i: any) => idSet.has(i.entrega_id));
-          }
+        let entregaFilterQuery = supabase.from('entregas_epi')
+          .select('id')
+          .gte('data_hora', rankingStartISO);
+        if (selectedEmpresa) entregaFilterQuery = entregaFilterQuery.eq('empresa_id', selectedEmpresa.id);
+        const { data: entregaIds } = await entregaFilterQuery;
+        if (entregaIds) {
+          const idSet = new Set(entregaIds.map(e => e.id));
+          filteredItens = filteredItens.filter((i: any) => idSet.has(i.entrega_id));
         }
 
         const epiMap = new Map<string, number>();
@@ -298,7 +302,7 @@ export default function Dashboard() {
       setLoading(false);
     };
     loadAll();
-  }, [selectedEmpresa]);
+  }, [selectedEmpresa, rankingDays]);
 
   const cards = [
     {
@@ -524,7 +528,18 @@ export default function Dashboard() {
       </div>
 
       {/* Rankings Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-foreground">Rankings de Entregas</h2>
+          <div className="flex gap-1">
+            {[30, 60, 90].map(d => (
+              <Button key={d} variant={rankingDays === d ? 'default' : 'outline'} size="sm" className="h-7 text-[11px] px-2.5" onClick={() => setRankingDays(d)}>
+                {d} dias
+              </Button>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <RankingCard
           title="Top 5 Colaboradores"
           icon={Users}
@@ -546,6 +561,7 @@ export default function Dashboard() {
           emptyText="Nenhum EPC entregue ainda."
           accentColor="bg-status-warning"
         />
+        </div>
       </div>
 
       {/* Alerts */}
