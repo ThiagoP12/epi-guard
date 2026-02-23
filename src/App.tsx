@@ -149,7 +149,8 @@ function ProtectedRoutes() {
   if (role === 'colaborador') {
     return (
       <Routes>
-        <Route path="*" element={<PortalColaborador />} />
+        <Route path="/portal" element={<PortalColaborador />} />
+        <Route path="*" element={<Navigate to="/portal" replace />} />
       </Routes>
     );
   }
@@ -157,6 +158,7 @@ function ProtectedRoutes() {
   return (
     <EmpresaProvider>
       <Routes>
+        <Route path="/portal" element={<PortalColaborador />} />
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/estoque" element={<Estoque />} />
