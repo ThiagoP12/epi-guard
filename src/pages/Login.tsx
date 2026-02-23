@@ -1,38 +1,78 @@
 import { useState } from 'react';
-import { Shield, Eye, EyeOff } from 'lucide-react';
+import { Shield, Eye, EyeOff, Building2, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 
+type Mode = 'login' | 'signup' | 'register-empresa';
+
 export default function Login() {
-  const { signIn, signUp } = useAuth();
-  const [isLogin, setIsLogin] = useState(true);
+  const { signIn, signUp, refetchProfile } = useAuth();
+  const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [nome, setNome] = useState('');
+  const [empresaNome, setEmpresaNome] = useState('');
+  const [empresaCnpj, setEmpresaCnpj] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    const { error } = await signIn(email, password);
+    if (error) setError(error);
+    setLoading(false);
+  };
+
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
     setLoading(true);
 
-    if (isLogin) {
-      const { error } = await signIn(email, password);
-      if (error) setError(error);
-    } else {
-      const { error } = await signUp(email, password, nome);
-      if (error) {
-        setError(error);
-      } else {
-        setSuccess('Conta criada! Verifique seu e-mail para confirmar o cadastro.');
-      }
+    if (!empresaNome.trim()) {
+      setError('Nome da empresa é obrigatório.');
+      setLoading(false);
+      return;
     }
+
+    // 1. Create auth account
+    const { error: signUpError } = await signUp(email, password, nome);
+    if (signUpError) {
+      setError(signUpError);
+      setLoading(false);
+      return;
+    }
+
+    // 2. Sign in immediately to get session
+    const { error: signInError } = await signIn(email, password);
+    if (signInError) {
+      // Email might need verification
+      setSuccess('Conta criada! Verifique seu e-mail para confirmar o cadastro. Após confirmar, faça login para cadastrar sua empresa.');
+      setLoading(false);
+      return;
+    }
+
+    // 3. Register tenant via edge function
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('register-tenant', {
+        body: { empresa_nome: empresaNome, empresa_cnpj: empresaCnpj },
+      });
+      if (fnError) throw fnError;
+      if (data?.error) throw new Error(data.error);
+
+      await refetchProfile();
+      setSuccess('Empresa cadastrada com sucesso! Aguarde a aprovação do administrador da plataforma.');
+    } catch (err: any) {
+      setError(err.message || 'Erro ao registrar empresa');
+    }
+
     setLoading(false);
   };
 
@@ -45,93 +85,107 @@ export default function Login() {
           </div>
           <h1 className="text-xl font-bold text-foreground tracking-tight">Gestão de EPI & EPC</h1>
           <p className="text-sm text-muted-foreground mt-1.5">
-            {isLogin ? 'Acesse sua conta para continuar' : 'Criar nova conta'}
+            {mode === 'login' ? 'Acesse sua conta para continuar' : 'Cadastre sua empresa'}
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-card rounded-xl border shadow-sm p-6 space-y-4">
-          {!isLogin && (
-            <div className="animate-fade-in">
-              <Label className="text-xs font-medium">Nome completo</Label>
-              <Input
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-                placeholder="Seu nome"
-                required={!isLogin}
-                className="mt-1.5 h-10"
-              />
+        {mode === 'login' ? (
+          <form onSubmit={handleLogin} className="bg-card rounded-xl border shadow-sm p-6 space-y-4">
+            <div>
+              <Label className="text-xs font-medium">E-mail</Label>
+              <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" required className="mt-1.5 h-10" autoComplete="email" />
             </div>
-          )}
-          <div>
-            <Label className="text-xs font-medium">E-mail</Label>
-            <Input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="seu@email.com"
-              required
-              className="mt-1.5 h-10"
-              autoComplete="email"
-            />
-          </div>
-          <div>
-            <Label className="text-xs font-medium">Senha</Label>
-            <div className="relative mt-1.5">
-              <Input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                minLength={6}
-                className="h-10 pr-10"
-                autoComplete={isLogin ? 'current-password' : 'new-password'}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                tabIndex={-1}
-              >
-                {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+            <div>
+              <Label className="text-xs font-medium">Senha</Label>
+              <div className="relative mt-1.5">
+                <Input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required minLength={6} className="h-10 pr-10" autoComplete="current-password" />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors" tabIndex={-1}>
+                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </div>
+
+            {error && <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-xs font-medium animate-fade-in">{error}</div>}
+
+            <Button type="submit" className="w-full h-10 font-semibold text-sm" disabled={loading}>
+              {loading ? <><Loader2 size={16} className="animate-spin mr-2" /> Aguarde...</> : 'Entrar'}
+            </Button>
+
+            <div className="relative py-1">
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t" /></div>
+            </div>
+
+            <p className="text-center text-xs text-muted-foreground">
+              Não tem conta?{' '}
+              <button type="button" onClick={() => { setMode('signup'); setError(''); setSuccess(''); }} className="text-primary font-semibold hover:underline underline-offset-2">
+                Cadastrar empresa
               </button>
+            </p>
+          </form>
+        ) : (
+          <form onSubmit={handleSignup} className="bg-card rounded-xl border shadow-sm p-6 space-y-4">
+            <div className="bg-muted/40 rounded-lg p-3 border flex items-start gap-2.5">
+              <Building2 size={18} className="text-primary mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs font-semibold text-foreground">Cadastro de Nova Empresa</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Sua conta será criada como administrador. A empresa ficará pendente de aprovação.</p>
+              </div>
             </div>
-          </div>
 
-          {error && (
-            <div className="p-3 rounded-lg status-danger text-xs animate-fade-in font-medium">{error}</div>
-          )}
-          {success && (
-            <div className="p-3 rounded-lg status-ok text-xs animate-fade-in font-medium">{success}</div>
-          )}
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs font-medium">Nome da Empresa *</Label>
+                <Input value={empresaNome} onChange={e => setEmpresaNome(e.target.value)} placeholder="Empresa Ltda" required className="mt-1.5 h-10" />
+              </div>
+              <div>
+                <Label className="text-xs font-medium">CNPJ</Label>
+                <Input value={empresaCnpj} onChange={e => setEmpresaCnpj(e.target.value)} placeholder="00.000.000/0000-00" className="mt-1.5 h-10" />
+              </div>
+            </div>
 
-          <Button type="submit" className="w-full h-10 font-semibold text-sm" disabled={loading}>
-            {loading ? (
-              <span className="flex items-center gap-2">
-                <span className="h-4 w-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                Aguarde...
-              </span>
-            ) : isLogin ? 'Entrar' : 'Criar conta'}
-          </Button>
+            <div className="relative py-1">
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t" /></div>
+              <div className="relative flex justify-center"><span className="bg-card px-2 text-[10px] text-muted-foreground uppercase tracking-wider">Dados do Administrador</span></div>
+            </div>
 
-          <div className="relative py-1">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t" /></div>
-          </div>
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs font-medium">Nome completo *</Label>
+                <Input value={nome} onChange={e => setNome(e.target.value)} placeholder="Seu nome" required className="mt-1.5 h-10" />
+              </div>
+              <div>
+                <Label className="text-xs font-medium">E-mail *</Label>
+                <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" required className="mt-1.5 h-10" autoComplete="email" />
+              </div>
+              <div>
+                <Label className="text-xs font-medium">Senha *</Label>
+                <div className="relative mt-1.5">
+                  <Input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required minLength={6} className="h-10 pr-10" autoComplete="new-password" />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors" tabIndex={-1}>
+                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+            </div>
 
-          <p className="text-center text-xs text-muted-foreground">
-            {isLogin ? 'Não tem conta? ' : 'Já tem conta? '}
-            <button
-              type="button"
-              onClick={() => { setIsLogin(!isLogin); setError(''); setSuccess(''); }}
-              className="text-primary font-semibold hover:underline underline-offset-2 transition-colors"
-            >
-              {isLogin ? 'Criar conta' : 'Fazer login'}
-            </button>
-          </p>
-        </form>
+            {error && <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-xs font-medium animate-fade-in">{error}</div>}
+            {success && <div className="p-3 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs font-medium animate-fade-in">{success}</div>}
+
+            <Button type="submit" className="w-full h-10 font-semibold text-sm" disabled={loading}>
+              {loading ? <><Loader2 size={16} className="animate-spin mr-2" /> Cadastrando...</> : 'Cadastrar Empresa'}
+            </Button>
+
+            <p className="text-center text-xs text-muted-foreground">
+              Já tem conta?{' '}
+              <button type="button" onClick={() => { setMode('login'); setError(''); setSuccess(''); }} className="text-primary font-semibold hover:underline underline-offset-2">
+                Fazer login
+              </button>
+            </p>
+          </form>
+        )}
 
         <p className="text-center text-[10px] text-muted-foreground/60 mt-6">
-          Sistema de Segurança do Trabalho
+          Sistema de Segurança do Trabalho • Multi-Tenant
         </p>
       </div>
     </div>

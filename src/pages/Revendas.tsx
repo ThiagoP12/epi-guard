@@ -95,7 +95,7 @@ export default function Revendas() {
                       </div>
                     </div>
                   </div>
-                  {role === 'admin' && (
+                  {(role === 'admin' || role === 'super_admin') && (
                     <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0" onClick={(e) => { e.stopPropagation(); openEdit(matriz); }}>
                       Editar
                     </Button>
@@ -138,7 +138,7 @@ export default function Revendas() {
                           </p>
                         </div>
                       </div>
-                      {role === 'admin' && (
+                      {(role === 'admin' || role === 'super_admin') && (
                         <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0" onClick={(e) => { e.stopPropagation(); openEdit(filial); }}>
                           Editar
                         </Button>

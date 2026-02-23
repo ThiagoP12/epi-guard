@@ -96,7 +96,7 @@ export default function Estoque() {
   const { user, role } = useAuth();
   const { toast } = useToast();
   const { selectedEmpresa } = useEmpresa();
-  const isAdmin = role === 'admin';
+  const isAdmin = role === 'admin' || role === 'super_admin';
 
   // Load colaboradores for exit modal
   useEffect(() => {

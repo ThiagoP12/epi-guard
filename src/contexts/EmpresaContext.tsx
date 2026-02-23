@@ -28,27 +28,6 @@ export function useEmpresa() {
   return ctx;
 }
 
-const EMPRESA_ORDER = [
-  'Revalle Juazeiro',
-  'Revalle Bonfim',
-  'Revalle Petrolina',
-  'Revalle Ribeira do Pombal',
-  'Revalle Paulo Afonso',
-  'Revalle Alagoinhas',
-  'Revalle Serrinha',
-];
-
-function sortEmpresas(list: Empresa[]): Empresa[] {
-  return [...list].sort((a, b) => {
-    const ia = EMPRESA_ORDER.indexOf(a.nome);
-    const ib = EMPRESA_ORDER.indexOf(b.nome);
-    if (ia !== -1 && ib !== -1) return ia - ib;
-    if (ia !== -1) return -1;
-    if (ib !== -1) return 1;
-    return a.nome.localeCompare(b.nome);
-  });
-}
-
 export function EmpresaProvider({ children }: { children: ReactNode }) {
   const { user, role } = useAuth();
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -66,31 +45,15 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
     const load = async () => {
       setLoading(true);
 
-      if (role === 'admin') {
-        // Admin sees all empresas
-        const { data } = await supabase
-          .from('empresas')
-          .select('*')
-          .eq('ativo', true)
-          .order('nome');
-        if (data) setEmpresas(sortEmpresas(data as Empresa[]));
-      } else {
-        // Other roles: only linked empresas
-        const { data: links } = await supabase
-          .from('user_empresas')
-          .select('empresa_id')
-          .eq('user_id', user.id);
+      // RLS now enforces empresa isolation, so just query all visible empresas
+      const { data } = await supabase
+        .from('empresas')
+        .select('*')
+        .eq('ativo', true)
+        .order('nome');
 
-        if (links && links.length > 0) {
-          const ids = links.map(l => l.empresa_id);
-          const { data } = await supabase
-            .from('empresas')
-            .select('*')
-            .in('id', ids)
-            .eq('ativo', true)
-            .order('nome');
-          if (data) setEmpresas(sortEmpresas(data as Empresa[]));
-        }
+      if (data) {
+        setEmpresas(data as Empresa[]);
       }
 
       setLoading(false);
@@ -99,7 +62,7 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
     load();
   }, [user, role]);
 
-  // Auto-select from localStorage (null = Todas)
+  // Auto-select from localStorage
   useEffect(() => {
     if (empresas.length > 0 && selectedEmpresa === null) {
       const saved = localStorage.getItem('selected_empresa_id');
@@ -107,7 +70,10 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
         const found = empresas.find(e => e.id === saved);
         if (found) setSelectedEmpresa(found);
       }
-      // If saved is 'todas' or not found, keep null (Todas)
+      // If only one empresa, auto-select it
+      if (empresas.length === 1 && !saved) {
+        setSelectedEmpresa(empresas[0]);
+      }
     }
   }, [empresas]);
 

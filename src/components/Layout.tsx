@@ -18,6 +18,7 @@ import {
   Sun,
   Moon,
   History,
+  Crown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -42,9 +43,16 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [empresaPopoverOpen, setEmpresaPopoverOpen] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const { profile, role, signOut } = useAuth();
+  const { profile, role, roles, signOut } = useAuth();
   const { empresas, selectedEmpresa, setSelectedEmpresa } = useEmpresa();
   const { theme, toggleTheme } = useTheme();
+
+  const isSuperAdmin = roles.includes('super_admin');
+
+  const allMenuItems = [
+    ...menuItems,
+    ...(isSuperAdmin ? [{ label: 'Tenants', icon: Crown, path: '/admin-tenants', phase: 1 }] : []),
+  ];
 
   // Load logo from storage
   useEffect(() => {
@@ -65,7 +73,7 @@ export default function Layout() {
   }, [location.pathname]);
 
   // Get current page title for breadcrumb
-  const currentPage = menuItems.find(m => m.path === location.pathname);
+  const currentPage = allMenuItems.find(m => m.path === location.pathname);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -183,7 +191,7 @@ export default function Layout() {
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}>
           <nav className="flex-1 py-3 px-2 overflow-y-auto space-y-0.5">
-            {menuItems.map((item, i) => {
+            {allMenuItems.map((item, i) => {
               const isActive = location.pathname === item.path;
               const isDisabled = item.phase > 1;
               return (
