@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEmpresa } from '@/contexts/EmpresaContext';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { supabase } from '@/integrations/supabase/client';
 
 const menuItems = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/', phase: 1 },
@@ -37,8 +38,22 @@ export default function Layout() {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [empresaPopoverOpen, setEmpresaPopoverOpen] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const { profile, role, signOut } = useAuth();
   const { empresas, selectedEmpresa, setSelectedEmpresa } = useEmpresa();
+
+  // Load logo from storage
+  useEffect(() => {
+    const loadLogo = async () => {
+      const { data } = await supabase.storage.from('empresa').list('', { limit: 10 });
+      const logoFile = data?.find(f => f.name.startsWith('logo'));
+      if (logoFile) {
+        const { data: urlData } = supabase.storage.from('empresa').getPublicUrl(logoFile.name);
+        setLogoUrl(urlData.publicUrl + '?t=' + Date.now());
+      }
+    };
+    loadLogo();
+  }, []);
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
@@ -64,9 +79,13 @@ export default function Layout() {
             </div>
           </button>
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-primary-foreground/15 flex items-center justify-center">
-              <Shield size={18} className="text-primary-foreground" />
-            </div>
+            {logoUrl ? (
+              <img src={logoUrl} alt="Logo" className="w-8 h-8 rounded-lg object-contain bg-primary-foreground/15 p-0.5" />
+            ) : (
+              <div className="w-8 h-8 rounded-lg bg-primary-foreground/15 flex items-center justify-center">
+                <Shield size={18} className="text-primary-foreground" />
+              </div>
+            )}
             <div className="hidden sm:block">
               <span className="text-primary-foreground font-semibold text-sm leading-none">Gestão EPI & EPC</span>
             </div>
