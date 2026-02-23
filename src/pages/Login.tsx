@@ -121,16 +121,6 @@ export default function Login() {
               {loading ? <><Loader2 size={16} className="animate-spin mr-2" /> Aguarde...</> : 'Entrar'}
             </Button>
 
-            <div className="relative py-1">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t" /></div>
-            </div>
-
-            <p className="text-center text-xs text-muted-foreground">
-              Não tem conta?{' '}
-              <button type="button" onClick={() => { setMode('signup'); setError(''); setSuccess(''); }} className="text-primary font-semibold hover:underline underline-offset-2">
-                Cadastrar empresa
-              </button>
-            </p>
           </form>
         ) : (
           <form onSubmit={handleSignup} className="bg-card rounded-xl border shadow-sm p-6 space-y-4">
