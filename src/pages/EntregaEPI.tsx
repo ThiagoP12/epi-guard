@@ -1,153 +1,204 @@
-import { useState } from 'react';
-import { CheckCircle, Search } from 'lucide-react';
-import { colaboradores, produtos } from '@/data/mockData';
+import { useState, useEffect } from 'react';
+import { CheckCircle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
+import SignatureCanvas from '@/components/SignatureCanvas';
 
-const motivos = ['Primeira entrega', 'Troca por desgaste', 'Perda', 'Danificado'];
+const motivos = ['Primeira entrega', 'Troca por desgaste', 'Perda', 'Danificado', 'Outro'] as const;
+
+interface Colaborador { id: string; nome: string; matricula: string; email: string | null; setor: string; funcao: string; }
+interface Produto { id: string; nome: string; ca: string | null; tipo: string; saldo: number; data_validade: string | null; custo_unitario: number; }
 
 export default function EntregaEPI() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
+  const [produtos, setProdutos] = useState<Produto[]>([]);
   const [colaboradorId, setColaboradorId] = useState('');
   const [produtoId, setProdutoId] = useState('');
   const [quantidade, setQuantidade] = useState(1);
   const [motivo, setMotivo] = useState('');
   const [observacao, setObservacao] = useState('');
-  const [success, setSuccess] = useState(false);
+  const [assinatura, setAssinatura] = useState<string | null>(null);
+  const [declaracao, setDeclaracao] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const epiProducts = produtos.filter(p => p.tipo === 'EPI' && p.saldo > 0 && p.ativo);
+  useEffect(() => {
+    const load = async () => {
+      const { data: colabs } = await supabase.from('colaboradores').select('id, nome, matricula, email, setor, funcao').eq('ativo', true).order('nome');
+      if (colabs) setColaboradores(colabs as Colaborador[]);
+
+      const { data: prods } = await supabase.from('produtos').select('*').eq('ativo', true).order('nome');
+      if (prods) {
+        const withSaldo: Produto[] = [];
+        for (const p of prods) {
+          const { data: saldo } = await supabase.rpc('get_saldo_produto', { p_produto_id: p.id });
+          if (typeof saldo === 'number' && saldo > 0) {
+            withSaldo.push({ id: p.id, nome: p.nome, ca: p.ca, tipo: p.tipo, saldo, data_validade: p.data_validade, custo_unitario: Number(p.custo_unitario) || 0 });
+          }
+        }
+        setProdutos(withSaldo);
+      }
+    };
+    load();
+  }, []);
+
   const selectedProduct = produtos.find(p => p.id === produtoId);
 
-  const handleSubmit = () => {
-    if (!colaboradorId || !produtoId || !motivo || quantidade < 1) return;
-    setSuccess(true);
-    setTimeout(() => setSuccess(false), 3000);
+  const handleSubmit = async () => {
+    if (!colaboradorId || !produtoId || !motivo || !assinatura || !declaracao || !user) {
+      toast({ title: 'Atenção', description: 'Preencha todos os campos, assine e aceite a declaração.', variant: 'destructive' });
+      return;
+    }
+    if (selectedProduct && quantidade > selectedProduct.saldo) {
+      toast({ title: 'Erro', description: 'Saldo insuficiente.', variant: 'destructive' });
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      // Create entrega
+      const { data: entrega, error: entregaError } = await supabase.from('entregas_epi').insert({
+        colaborador_id: colaboradorId,
+        usuario_id: user.id,
+        motivo: motivo as any,
+        observacao: observacao || null,
+        assinatura_base64: assinatura,
+        declaracao_aceita: true,
+        ip_origem: 'browser',
+        user_agent: navigator.userAgent,
+        versao_termo: '1.0',
+      }).select('id').single();
+
+      if (entregaError) throw entregaError;
+
+      // Create item
+      const prod = selectedProduct!;
+      const { error: itemError } = await supabase.from('entrega_epi_itens').insert({
+        entrega_id: entrega.id,
+        produto_id: produtoId,
+        quantidade,
+        nome_snapshot: prod.nome,
+        ca_snapshot: prod.ca,
+        validade_snapshot: prod.data_validade,
+        custo_unitario_snapshot: prod.custo_unitario,
+      });
+      if (itemError) throw itemError;
+
+      // Create stock movement
+      const { error: movError } = await supabase.from('movimentacoes_estoque').insert({
+        produto_id: produtoId,
+        tipo_movimentacao: 'SAIDA',
+        quantidade,
+        motivo: `Entrega EPI: ${motivo}`,
+        usuario_id: user.id,
+        colaborador_id: colaboradorId,
+        entrega_id: entrega.id,
+      });
+      if (movError) throw movError;
+
+      // Try to send email via edge function
+      try {
+        const colab = colaboradores.find(c => c.id === colaboradorId);
+        await supabase.functions.invoke('send-entrega-email', {
+          body: { entregaId: entrega.id, colaboradorNome: colab?.nome, colaboradorEmail: colab?.email, itens: [{ nome: prod.nome, ca: prod.ca, quantidade }] },
+        });
+      } catch (emailErr) {
+        console.warn('Email sending failed (function may not exist yet):', emailErr);
+      }
+
+      toast({ title: 'Entrega registrada!', description: 'Assinatura e movimentação salvas com sucesso.' });
+
+      // Reset form
+      setColaboradorId('');
+      setProdutoId('');
+      setQuantidade(1);
+      setMotivo('');
+      setObservacao('');
+      setAssinatura(null);
+      setDeclaracao(false);
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+
+    setSubmitting(false);
   };
 
   return (
     <div>
       <h1 className="text-xl font-semibold text-foreground mb-5">Entrega de EPI</h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Form */}
-        <div className="lg:col-span-2">
-          <div className="bg-card rounded-lg border p-5 space-y-5">
+      <div className="max-w-2xl">
+        <div className="bg-card rounded-lg border p-5 space-y-5">
+          <div>
+            <Label>Colaborador *</Label>
+            <Select value={colaboradorId} onValueChange={setColaboradorId}>
+              <SelectTrigger className="mt-1"><SelectValue placeholder="Selecionar colaborador..." /></SelectTrigger>
+              <SelectContent>
+                {colaboradores.map(c => (
+                  <SelectItem key={c.id} value={c.id}>{c.nome} — {c.matricula}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>Item (EPI/EPC) *</Label>
+            <Select value={produtoId} onValueChange={setProdutoId}>
+              <SelectTrigger className="mt-1"><SelectValue placeholder="Selecionar item..." /></SelectTrigger>
+              <SelectContent>
+                {produtos.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.nome} — CA: {p.ca || 'N/A'} (Saldo: {p.saldo})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>Colaborador</Label>
-              <Select value={colaboradorId} onValueChange={setColaboradorId}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Selecionar colaborador..." />
-                </SelectTrigger>
+              <Label>Quantidade *</Label>
+              <Input type="number" min={1} max={selectedProduct?.saldo || 999} value={quantidade} onChange={(e) => setQuantidade(Number(e.target.value))} className="mt-1" />
+            </div>
+            <div>
+              <Label>Motivo *</Label>
+              <Select value={motivo} onValueChange={setMotivo}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
                 <SelectContent>
-                  {colaboradores.filter(c => c.ativo).map(c => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nome} — {c.matricula}
-                    </SelectItem>
-                  ))}
+                  {motivos.map(m => (<SelectItem key={m} value={m}>{m}</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>
-
-            <div>
-              <Label>Item (EPI)</Label>
-              <Select value={produtoId} onValueChange={setProdutoId}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Selecionar item..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {epiProducts.map(p => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.nome} — CA: {p.ca} (Saldo: {p.saldo})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Quantidade</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={selectedProduct?.saldo || 999}
-                  value={quantidade}
-                  onChange={(e) => setQuantidade(Number(e.target.value))}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label>Motivo</Label>
-                <Select value={motivo} onValueChange={setMotivo}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Selecionar..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {motivos.map(m => (
-                      <SelectItem key={m} value={m}>{m}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div>
-              <Label>Observação</Label>
-              <Textarea
-                value={observacao}
-                onChange={(e) => setObservacao(e.target.value)}
-                placeholder="Observação (opcional)"
-                className="mt-1"
-                rows={2}
-              />
-            </div>
-
-            {/* Signature area placeholder */}
-            <div>
-              <Label>Assinatura Digital</Label>
-              <div className="mt-1 border-2 border-dashed rounded-lg h-32 flex items-center justify-center text-muted-foreground text-sm cursor-pointer hover:border-primary/40 transition-colors">
-                Clique ou toque para assinar
-              </div>
-            </div>
-
-            <Button className="w-full h-12 text-base font-semibold" onClick={handleSubmit}>
-              <CheckCircle size={18} className="mr-2" />
-              Confirmar Entrega
-            </Button>
-
-            {success && (
-              <div className="p-3 rounded-lg status-ok text-sm font-medium text-center animate-fade-in">
-                ✓ Entrega registrada com sucesso!
-              </div>
-            )}
           </div>
-        </div>
 
-        {/* Recent deliveries */}
-        <div>
-          <div className="bg-card rounded-lg border p-4">
-            <h3 className="text-sm font-semibold mb-3">Entregas Recentes</h3>
-            <div className="space-y-3">
-              {[
-                { nome: 'Carlos A. Silva', item: 'Luva Nitrílica x2', data: '20/02' },
-                { nome: 'José R. Pereira', item: 'Avental Couro x1', data: '19/02' },
-                { nome: 'Patrícia S. Ramos', item: 'Protetor Auricular x5', data: '18/02' },
-              ].map((e, i) => (
-                <div key={i} className="p-2.5 rounded-md bg-muted/50 text-sm">
-                  <p className="font-medium">{e.nome}</p>
-                  <p className="text-muted-foreground text-xs">{e.item} • {e.data}</p>
-                </div>
-              ))}
-            </div>
+          <div>
+            <Label>Observação</Label>
+            <Textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Observação (opcional)" className="mt-1" rows={2} />
           </div>
+
+          <div>
+            <Label className="mb-2 block">Assinatura Digital *</Label>
+            <SignatureCanvas onSignatureChange={setAssinatura} width={Math.min(460, window.innerWidth - 80)} height={140} />
+          </div>
+
+          <div className="flex items-start gap-2 p-3 rounded-md bg-muted/50">
+            <Checkbox id="declaracao" checked={declaracao} onCheckedChange={(v) => setDeclaracao(v === true)} className="mt-0.5" />
+            <label htmlFor="declaracao" className="text-xs text-muted-foreground leading-relaxed cursor-pointer">
+              Declaro que recebi os Equipamentos de Proteção Individual (EPI) listados acima e me comprometo a utilizá-los adequadamente durante a execução de minhas atividades, conforme orientações recebidas e disposições da NR-06.
+            </label>
+          </div>
+
+          <Button className="w-full h-12 text-base font-semibold" onClick={handleSubmit} disabled={submitting}>
+            <CheckCircle size={18} className="mr-2" />
+            {submitting ? 'Registrando...' : 'Confirmar Entrega'}
+          </Button>
         </div>
       </div>
     </div>
