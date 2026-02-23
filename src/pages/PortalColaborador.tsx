@@ -115,14 +115,24 @@ export default function PortalColaborador() {
     };
     load();
 
-    // Realtime: auto-refresh when solicitacoes change
+    // Realtime: auto-refresh when solicitacoes or entregas change
     const channel = supabase
       .channel('portal-solicitacoes')
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'solicitacoes_epi' },
+        { event: '*', schema: 'public', table: 'solicitacoes_epi' },
         () => {
-          if (colabId) loadSolicitacoes(colabId);
+          if (colabId) {
+            loadSolicitacoes(colabId);
+            loadEntregas(colabId);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'entregas_epi' },
+        () => {
+          if (colabId) loadEntregas(colabId);
         }
       )
       .subscribe();
