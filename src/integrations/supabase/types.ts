@@ -152,6 +152,7 @@ export type Database = {
           motivo: Database["public"]["Enums"]["motivo_entrega"]
           observacao: string | null
           pdf_hash: string | null
+          pdf_storage_path: string | null
           user_agent: string | null
           usuario_id: string
           versao_termo: string | null
@@ -170,6 +171,7 @@ export type Database = {
           motivo: Database["public"]["Enums"]["motivo_entrega"]
           observacao?: string | null
           pdf_hash?: string | null
+          pdf_storage_path?: string | null
           user_agent?: string | null
           usuario_id: string
           versao_termo?: string | null
@@ -188,6 +190,7 @@ export type Database = {
           motivo?: Database["public"]["Enums"]["motivo_entrega"]
           observacao?: string | null
           pdf_hash?: string | null
+          pdf_storage_path?: string | null
           user_agent?: string | null
           usuario_id?: string
           versao_termo?: string | null

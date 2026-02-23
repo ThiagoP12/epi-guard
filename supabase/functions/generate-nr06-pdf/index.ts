@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,41 +17,53 @@ serve(async (req) => {
 
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
     const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const headers = {
-      'apikey': SERVICE_KEY,
-      'Authorization': `Bearer ${SERVICE_KEY}`,
-      'Content-Type': 'application/json',
-    };
+    
+    const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
     // Fetch entrega
-    const entregaRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/entregas_epi?id=eq.${entregaId}&select=*`,
-      { headers }
-    );
-    const [entrega] = await entregaRes.json();
-    if (!entrega) throw new Error('Entrega not found');
+    const { data: entrega, error: entregaErr } = await supabase
+      .from('entregas_epi')
+      .select('*')
+      .eq('id', entregaId)
+      .single();
+    if (entregaErr || !entrega) throw new Error('Entrega not found');
+
+    // Check if PDF already exists
+    if (entrega.pdf_storage_path) {
+      const { data: urlData } = supabase.storage
+        .from('termos-nr06')
+        .getPublicUrl(entrega.pdf_storage_path);
+      
+      // For private buckets, create signed URL
+      const { data: signedData } = await supabase.storage
+        .from('termos-nr06')
+        .createSignedUrl(entrega.pdf_storage_path, 3600);
+
+      return new Response(
+        JSON.stringify({ success: true, url: signedData?.signedUrl, path: entrega.pdf_storage_path }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Fetch colaborador
-    const colabRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/colaboradores?id=eq.${entrega.colaborador_id}&select=*`,
-      { headers }
-    );
-    const [colab] = await colabRes.json();
+    const { data: colab } = await supabase
+      .from('colaboradores')
+      .select('*')
+      .eq('id', entrega.colaborador_id)
+      .single();
 
     // Fetch itens
-    const itensRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/entrega_epi_itens?entrega_id=eq.${entregaId}&select=*`,
-      { headers }
-    );
-    const itens = await itensRes.json();
+    const { data: itens } = await supabase
+      .from('entrega_epi_itens')
+      .select('*')
+      .eq('entrega_id', entregaId);
 
     // Fetch empresa config
-    const configRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/configuracoes?select=chave,valor`,
-      { headers }
-    );
-    const configs = await configRes.json();
-    const cfg = (key: string) => configs.find((c: any) => c.chave === key)?.valor || '';
+    const { data: configs } = await supabase
+      .from('configuracoes')
+      .select('chave, valor');
+
+    const cfg = (key: string) => (configs || []).find((c: any) => c.chave === key)?.valor || '';
 
     const empresaNome = cfg('empresa_nome') || 'Empresa';
     const empresaCnpj = cfg('empresa_cnpj') || '';
@@ -62,7 +75,7 @@ serve(async (req) => {
       : '—';
 
     // Build itens table rows
-    const itensRows = itens.map((item: any, i: number) => {
+    const itensRows = (itens || []).map((item: any, i: number) => {
       const validade = item.validade_snapshot
         ? new Date(item.validade_snapshot + 'T12:00:00').toLocaleDateString('pt-BR')
         : '—';
@@ -76,12 +89,10 @@ serve(async (req) => {
         </tr>`;
     }).join('');
 
-    // Signature image
     const assinaturaImg = entrega.assinatura_base64
       ? `<img src="${entrega.assinatura_base64}" style="max-width:280px;max-height:100px;" />`
       : '<span style="color:#999;font-size:11px;">Sem assinatura</span>';
 
-    // Build full NR-06 Term HTML
     const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -206,9 +217,37 @@ serve(async (req) => {
 </body>
 </html>`;
 
-    // Return the HTML — the frontend will use browser print/PDF functionality
+    // Store HTML in Supabase Storage
+    const fileName = `${entregaId}.html`;
+    const filePath = `entregas/${fileName}`;
+    
+    const { error: uploadError } = await supabase.storage
+      .from('termos-nr06')
+      .upload(filePath, new Blob([html], { type: 'text/html' }), {
+        contentType: 'text/html',
+        upsert: true,
+      });
+
+    if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+
+    // Update entrega record with storage path
+    await supabase
+      .from('entregas_epi')
+      .update({ pdf_storage_path: filePath })
+      .eq('id', entregaId);
+
+    // Create signed URL (1 hour)
+    const { data: signedData } = await supabase.storage
+      .from('termos-nr06')
+      .createSignedUrl(filePath, 3600);
+
     return new Response(
-      JSON.stringify({ success: true, html, filename: `NR06_${colab?.nome?.replace(/\\s+/g, '_') || 'termo'}_${entregaId.substring(0, 8)}.pdf` }),
+      JSON.stringify({ 
+        success: true, 
+        url: signedData?.signedUrl,
+        path: filePath,
+        filename: `NR06_${colab?.nome?.replace(/\s+/g, '_') || 'termo'}_${entregaId.substring(0, 8)}.html`,
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
