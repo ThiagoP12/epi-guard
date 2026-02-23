@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, ClipboardCheck, Plus, UserCheck, History, FileDown, Loader2, Users, Building2, UserX, Settings2, Filter, KeyRound, Upload } from 'lucide-react';
+import { Search, ClipboardCheck, Plus, UserCheck, History, FileDown, Loader2, Users, Building2, UserX, Settings2, Filter, KeyRound, Upload, Camera, PenLine } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
@@ -33,6 +33,7 @@ interface EntregaHistorico {
   data_hora: string;
   motivo: string;
   assinatura_base64: string;
+  selfie_base64: string | null;
   observacao: string | null;
   itens: { nome_snapshot: string; ca_snapshot: string | null; quantidade: number; validade_snapshot: string | null }[];
 }
@@ -223,7 +224,7 @@ export default function Colaboradores() {
     setDetailEntregas([]);
     const { data: entregasData } = await supabase
       .from('entregas_epi')
-      .select('id, data_hora, motivo, assinatura_base64, observacao')
+      .select('id, data_hora, motivo, assinatura_base64, selfie_base64, observacao')
       .eq('colaborador_id', colabId)
       .order('data_hora', { ascending: false });
     if (entregasData && entregasData.length > 0) {
@@ -248,7 +249,7 @@ export default function Colaboradores() {
 
     const { data: entregasData } = await supabase
       .from('entregas_epi')
-      .select('id, data_hora, motivo, assinatura_base64, observacao')
+      .select('id, data_hora, motivo, assinatura_base64, selfie_base64, observacao')
       .eq('colaborador_id', colab.id)
       .order('data_hora', { ascending: false });
 
@@ -657,6 +658,31 @@ export default function Colaboradores() {
                     </div>
                   ))}
                 </div>
+
+                {/* Latest photo & signature from deliveries */}
+                {detailEntregas.length > 0 && (detailEntregas[0].selfie_base64 || detailEntregas[0].assinatura_base64) && (
+                  <div className="border rounded-lg p-3 space-y-3">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Última Verificação de Identidade</p>
+                    <div className="flex gap-4 items-start">
+                      {detailEntregas[0].selfie_base64 && (
+                        <div>
+                          <p className="text-[10px] text-muted-foreground mb-1 flex items-center gap-1"><Camera size={10} /> Foto</p>
+                          <img src={detailEntregas[0].selfie_base64} alt="Selfie" className="w-20 h-20 rounded-lg object-cover border" />
+                        </div>
+                      )}
+                      {detailEntregas[0].assinatura_base64 && (
+                        <div>
+                          <p className="text-[10px] text-muted-foreground mb-1 flex items-center gap-1"><PenLine size={10} /> Assinatura</p>
+                          <div className="bg-muted/30 rounded-lg p-2 border border-dashed">
+                            <img src={detailEntregas[0].assinatura_base64} alt="Assinatura" className="max-w-[160px] max-h-[50px] object-contain" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-[9px] text-muted-foreground">{formatDate(detailEntregas[0].data_hora)}</p>
+                  </div>
+                )}
+
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={() => { setDetailOpen(false); openEdit(detailColab); }}>
                     <Settings2 size={13} className="mr-1" /> Editar
@@ -804,15 +830,23 @@ export default function Colaboradores() {
                     </table>
                   </div>
 
-                  <div className="pt-2 border-t">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 font-medium">Assinatura Digital</p>
-                    {entrega.assinatura_base64 ? (
-                      <div className="bg-muted/30 rounded-lg p-2 inline-block border border-dashed">
-                        <img src={entrega.assinatura_base64} alt="Assinatura digital" className="max-w-[200px] max-h-[60px] object-contain" />
+                  <div className="pt-2 border-t flex gap-4">
+                    {entrega.selfie_base64 && (
+                      <div>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 font-medium">Foto Verificação</p>
+                        <img src={entrega.selfie_base64} alt="Selfie" className="w-14 h-14 rounded-lg object-cover border" />
                       </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground/50 italic">Sem assinatura</p>
                     )}
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 font-medium">Assinatura Digital</p>
+                      {entrega.assinatura_base64 ? (
+                        <div className="bg-muted/30 rounded-lg p-2 inline-block border border-dashed">
+                          <img src={entrega.assinatura_base64} alt="Assinatura digital" className="max-w-[200px] max-h-[60px] object-contain" />
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground/50 italic">Sem assinatura</p>
+                      )}
+                    </div>
                   </div>
 
                   <p className="text-[9px] text-muted-foreground/40 font-mono">

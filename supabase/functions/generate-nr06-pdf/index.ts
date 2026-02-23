@@ -100,6 +100,10 @@ serve(async (req) => {
       ? `<img src="${entrega.assinatura_base64}" style="max-width:280px;max-height:100px;" />`
       : '<span style="color:#999;font-size:11px;">Sem assinatura</span>';
 
+    const selfieImg = entrega.selfie_base64
+      ? `<img src="${entrega.selfie_base64}" style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:2px solid #ccc;" />`
+      : '';
+
     // Mask CPF for display (show only last 4 digits)
     const cpfDisplay = colab?.cpf 
       ? `***.***.${colab.cpf.slice(-6)}` 
@@ -214,7 +218,11 @@ serve(async (req) => {
 
   <div class="section">
     <div class="section-title">Assinaturas</div>
-    <div class="assinatura-box">
+    <div class="assinatura-box" style="align-items:flex-end;">
+      ${selfieImg ? `<div class="assinatura-col" style="flex:0 0 auto;">
+        <p style="font-size:9px;color:#666;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">Foto de Verificação</p>
+        ${selfieImg}
+      </div>` : ''}
       <div class="assinatura-col">
         ${assinaturaImg}
         <div class="line"><strong>${colab?.nome || '—'}</strong><br/>${colab?.cpf ? `CPF: ${cpfDisplay}` : 'Colaborador'}</div>

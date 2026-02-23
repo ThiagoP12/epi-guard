@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import SignatureCanvas from '@/components/SignatureCanvas';
+import SelfieCapture from '@/components/SelfieCapture';
 import { LogOut, Package, History, ClipboardCheck, CheckCircle, Clock, XCircle, Loader2, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -38,6 +39,7 @@ export default function PortalColaborador() {
   const [motivo, setMotivo] = useState('Solicitação');
   const [observacao, setObservacao] = useState('');
   const [assinatura, setAssinatura] = useState<string | null>(null);
+  const [selfie, setSelfie] = useState<string | null>(null);
   const [declaracao, setDeclaracao] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -100,8 +102,8 @@ export default function PortalColaborador() {
   };
 
   const handleSubmit = async () => {
-    if (!produtoId || !assinatura || !declaracao || !colaborador) {
-      toast({ title: 'Atenção', description: 'Selecione o item, assine e aceite a declaração.', variant: 'destructive' });
+    if (!produtoId || !assinatura || !selfie || !declaracao || !colaborador) {
+      toast({ title: 'Atenção', description: 'Selecione o item, tire a selfie, assine e aceite a declaração.', variant: 'destructive' });
       return;
     }
 
@@ -129,11 +131,12 @@ export default function PortalColaborador() {
         motivo,
         observacao: observacao || null,
         assinatura_base64: assinatura,
+        selfie_base64: selfie,
         declaracao_aceita: true,
         ip_origem: ipOrigem,
         user_agent: navigator.userAgent,
         pdf_hash: pdfHash,
-      });
+      } as any);
 
       if (error) throw error;
 
@@ -143,6 +146,7 @@ export default function PortalColaborador() {
       setMotivo('Solicitação');
       setObservacao('');
       setAssinatura(null);
+      setSelfie(null);
       setDeclaracao(false);
       await loadSolicitacoes(colaborador.id);
       setTab('historico');
@@ -272,6 +276,11 @@ export default function PortalColaborador() {
             <div>
               <Label className="text-xs font-medium">Observação</Label>
               <Textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Motivo detalhado (opcional)" className="mt-1.5" rows={2} />
+            </div>
+
+            <div>
+              <Label className="text-xs font-medium mb-2 block">Selfie de Verificação *</Label>
+              <SelfieCapture onCaptureChange={setSelfie} />
             </div>
 
             <div>

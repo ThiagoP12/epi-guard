@@ -218,6 +218,7 @@ export type Database = {
           observacao: string | null
           pdf_hash: string | null
           pdf_storage_path: string | null
+          selfie_base64: string | null
           user_agent: string | null
           usuario_id: string
           versao_termo: string | null
@@ -238,6 +239,7 @@ export type Database = {
           observacao?: string | null
           pdf_hash?: string | null
           pdf_storage_path?: string | null
+          selfie_base64?: string | null
           user_agent?: string | null
           usuario_id: string
           versao_termo?: string | null
@@ -258,6 +260,7 @@ export type Database = {
           observacao?: string | null
           pdf_hash?: string | null
           pdf_storage_path?: string | null
+          selfie_base64?: string | null
           user_agent?: string | null
           usuario_id?: string
           versao_termo?: string | null
@@ -348,6 +351,7 @@ export type Database = {
           produto_id: string
           quantidade: number
           referencia_nf: string | null
+          selfie_base64: string | null
           tipo_movimentacao: Database["public"]["Enums"]["tipo_movimentacao"]
           usuario_id: string | null
         }
@@ -365,6 +369,7 @@ export type Database = {
           produto_id: string
           quantidade: number
           referencia_nf?: string | null
+          selfie_base64?: string | null
           tipo_movimentacao: Database["public"]["Enums"]["tipo_movimentacao"]
           usuario_id?: string | null
         }
@@ -382,6 +387,7 @@ export type Database = {
           produto_id?: string
           quantidade?: number
           referencia_nf?: string | null
+          selfie_base64?: string | null
           tipo_movimentacao?: Database["public"]["Enums"]["tipo_movimentacao"]
           usuario_id?: string | null
         }
@@ -521,6 +527,7 @@ export type Database = {
           pdf_hash: string | null
           produto_id: string
           quantidade: number
+          selfie_base64: string | null
           status: string
           updated_at: string
           user_agent: string | null
@@ -541,6 +548,7 @@ export type Database = {
           pdf_hash?: string | null
           produto_id: string
           quantidade?: number
+          selfie_base64?: string | null
           status?: string
           updated_at?: string
           user_agent?: string | null
@@ -561,6 +569,7 @@ export type Database = {
           pdf_hash?: string | null
           produto_id?: string
           quantidade?: number
+          selfie_base64?: string | null
           status?: string
           updated_at?: string
           user_agent?: string | null
