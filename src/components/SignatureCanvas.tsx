@@ -29,7 +29,7 @@ export default function SignatureCanvas({ onSignatureChange, width = 500, height
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.lineWidth = 2;
-    ctx.strokeStyle = '#1a2744';
+    ctx.strokeStyle = 'hsl(215, 70%, 22%)';
   }, [width, height]);
 
   const getPos = (e: React.MouseEvent | React.TouchEvent) => {
