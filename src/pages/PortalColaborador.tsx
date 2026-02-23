@@ -10,8 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import SignatureCanvas from '@/components/SignatureCanvas';
 import SelfieCapture from '@/components/SelfieCapture';
-import { LogOut, Package, History, ClipboardCheck, CheckCircle, Clock, XCircle, Loader2, Shield } from 'lucide-react';
+import { LogOut, Package, History, ClipboardCheck, CheckCircle, Clock, XCircle, Loader2, Shield, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 
 interface Colaborador {
   id: string; nome: string; matricula: string; cpf: string | null; email: string | null;
@@ -23,14 +24,20 @@ interface Solicitacao {
   status: string; created_at: string; motivo_rejeicao: string | null;
   produto?: { nome: string; ca: string | null };
 }
+interface EntregaItem { nome_snapshot: string; ca_snapshot: string | null; quantidade: number; }
+interface Entrega {
+  id: string; data_hora: string; motivo: string; observacao: string | null;
+  itens: EntregaItem[];
+}
 
 export default function PortalColaborador() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
-  const [tab, setTab] = useState<'solicitar' | 'historico'>('solicitar');
+  const [tab, setTab] = useState<'solicitar' | 'historico' | 'recebimentos'>('solicitar');
   const [colaborador, setColaborador] = useState<Colaborador | null>(null);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [solicitacoes, setSolicitacoes] = useState<Solicitacao[]>([]);
+  const [entregas, setEntregas] = useState<Entrega[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Form state
@@ -73,10 +80,35 @@ export default function PortalColaborador() {
 
       // Load solicitations
       await loadSolicitacoes(colab.id);
+      await loadEntregas(colab.id);
       setLoading(false);
     };
     load();
   }, [user]);
+
+  const loadEntregas = async (colabId: string) => {
+    const { data } = await supabase
+      .from('entregas_epi')
+      .select('id, data_hora, motivo, observacao')
+      .eq('colaborador_id', colabId)
+      .order('data_hora', { ascending: false });
+
+    if (data && data.length > 0) {
+      const entregaIds = data.map(e => e.id);
+      const { data: itens } = await supabase
+        .from('entrega_epi_itens')
+        .select('entrega_id, nome_snapshot, ca_snapshot, quantidade')
+        .in('entrega_id', entregaIds);
+
+      const enriched: Entrega[] = data.map(e => ({
+        ...e,
+        itens: (itens?.filter(i => i.entrega_id === e.id) || []) as EntregaItem[],
+      }));
+      setEntregas(enriched);
+    } else {
+      setEntregas([]);
+    }
+  };
 
   const loadSolicitacoes = async (colabId: string) => {
     const { data } = await supabase
@@ -239,6 +271,14 @@ export default function PortalColaborador() {
               </span>
             )}
           </Button>
+          <Button variant={tab === 'recebimentos' ? 'default' : 'outline'} size="sm" onClick={() => setTab('recebimentos')} className="gap-1.5">
+            <Package size={14} /> Meus Recebimentos
+            {entregas.length > 0 && (
+              <span className="ml-1 bg-primary/80 text-primary-foreground text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                {entregas.length}
+              </span>
+            )}
+          </Button>
         </div>
 
         {tab === 'solicitar' && (
@@ -346,6 +386,72 @@ export default function PortalColaborador() {
                   {s.observacao && (
                     <p className="text-[11px] text-muted-foreground mt-1">Obs: {s.observacao}</p>
                   )}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {tab === 'recebimentos' && (
+          <div className="space-y-4">
+            {/* Totalizador */}
+            {entregas.length > 0 && (() => {
+              const totals = new Map<string, { nome: string; ca: string | null; total: number }>();
+              entregas.forEach(e => e.itens.forEach(i => {
+                const prev = totals.get(i.nome_snapshot);
+                if (prev) prev.total += i.quantidade;
+                else totals.set(i.nome_snapshot, { nome: i.nome_snapshot, ca: i.ca_snapshot, total: i.quantidade });
+              }));
+              const items = [...totals.values()].sort((a, b) => b.total - a.total);
+              const grandTotal = items.reduce((s, i) => s + i.total, 0);
+              return (
+                <div className="bg-card rounded-xl border shadow-sm p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Resumo — Total Recebido</p>
+                    <span className="text-xs font-bold text-foreground">{grandTotal} itens</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {items.map(item => (
+                      <div key={item.nome} className="flex items-center justify-between bg-muted/30 rounded-md px-2.5 py-1.5 border text-xs">
+                        <div className="flex-1 min-w-0">
+                          <span className="font-medium truncate block">{item.nome}</span>
+                          {item.ca && <span className="text-[10px] text-muted-foreground">CA: {item.ca}</span>}
+                        </div>
+                        <span className="font-bold text-primary ml-2 shrink-0">{item.total}x</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Lista de entregas */}
+            {entregas.length === 0 ? (
+              <div className="bg-card rounded-xl border shadow-sm p-8 text-center">
+                <Package size={32} className="text-muted-foreground/40 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">Nenhum EPI recebido ainda.</p>
+              </div>
+            ) : (
+              entregas.map(e => (
+                <div key={e.id} className="bg-card rounded-xl border shadow-sm p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText size={14} className="text-primary" />
+                      <span className="text-sm font-medium">{e.motivo}</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">
+                      {format(new Date(e.data_hora), 'dd/MM/yyyy HH:mm')}
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    {e.itens.map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-xs bg-muted/20 rounded px-2.5 py-1.5">
+                        <span>{item.nome_snapshot} {item.ca_snapshot && <span className="text-muted-foreground">— CA: {item.ca_snapshot}</span>}</span>
+                        <span className="font-semibold">{item.quantidade}x</span>
+                      </div>
+                    ))}
+                  </div>
+                  {e.observacao && <p className="text-[11px] text-muted-foreground">Obs: {e.observacao}</p>}
                 </div>
               ))
             )}
