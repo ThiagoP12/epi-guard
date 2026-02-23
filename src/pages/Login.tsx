@@ -21,21 +21,12 @@ export default function Login() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Resolve login identifier: if it looks like a CPF (digits only), convert to email format
-  const resolveEmail = (input: string) => {
-    const digits = input.replace(/\D/g, '');
-    if (digits.length === 11 && !/[@]/.test(input)) {
-      return `${digits}@portal.local`;
-    }
-    return input;
-  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const resolvedEmail = resolveEmail(email);
-    const { error } = await signIn(resolvedEmail, password);
+    const { error } = await signIn(email, password);
     if (error) setError(error);
     setLoading(false);
   };
@@ -102,8 +93,8 @@ export default function Login() {
         {mode === 'login' ? (
           <form onSubmit={handleLogin} className="bg-card rounded-xl border shadow-sm p-6 space-y-4">
             <div>
-              <Label className="text-xs font-medium">CPF</Label>
-              <Input type="text" value={email} onChange={e => setEmail(e.target.value)} placeholder="000.000.000-00" required className="mt-1.5 h-10" autoComplete="username" inputMode="numeric" />
+              <Label className="text-xs font-medium">E-mail</Label>
+              <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" required className="mt-1.5 h-10" autoComplete="username" />
             </div>
             <div>
               <Label className="text-xs font-medium">Senha</Label>
