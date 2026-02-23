@@ -33,7 +33,7 @@ interface RankingItem {
 export default function Dashboard() {
   const navigate = useNavigate();
   const { selectedEmpresa } = useEmpresa();
-  const [stats, setStats] = useState({ estoqueBaixo: 0, entregasMes: 0, totalColabs: 0, totalProdutos: 0 });
+  const [stats, setStats] = useState({ estoqueBaixo: 0, entregasMes: 0, totalColabs: 0, totalProdutos: 0, totalEPIs: 0, totalEPCs: 0 });
   const [activities, setActivities] = useState<RecentActivity[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [chartData, setChartData] = useState<ChartData[]>([]);
@@ -88,11 +88,16 @@ export default function Dashboard() {
       if (selectedEmpresa) colabQuery = colabQuery.eq('empresa_id', selectedEmpresa.id);
       const { count: totalColabs } = await colabQuery;
 
+      const totalEPIs = produtos?.filter(p => p.tipo === 'EPI').length || 0;
+      const totalEPCs = produtos?.filter(p => p.tipo === 'EPC').length || 0;
+
       setStats({
         estoqueBaixo,
         entregasMes: entregasMes || 0,
         totalColabs: totalColabs || 0,
         totalProdutos: produtos?.length || 0,
+        totalEPIs,
+        totalEPCs,
       });
       setAlerts(alertsList);
 
@@ -237,12 +242,28 @@ export default function Dashboard() {
 
   const cards = [
     {
-      title: 'Estoque Baixo',
-      value: stats.estoqueBaixo,
+      title: 'Colaboradores',
+      value: stats.totalColabs,
+      subtitle: 'ativos',
+      severity: 'ok' as const,
+      icon: Users,
+      onClick: () => navigate('/colaboradores'),
+    },
+    {
+      title: 'EPIs Cadastrados',
+      value: stats.totalEPIs,
       subtitle: `de ${stats.totalProdutos} produtos`,
-      severity: stats.estoqueBaixo > 0 ? 'danger' as const : 'ok' as const,
+      severity: 'ok' as const,
       icon: Package,
-      onClick: () => navigate('/estoque?status=baixo'),
+      onClick: () => navigate('/estoque'),
+    },
+    {
+      title: 'EPCs Cadastrados',
+      value: stats.totalEPCs,
+      subtitle: `de ${stats.totalProdutos} produtos`,
+      severity: 'ok' as const,
+      icon: Shield,
+      onClick: () => navigate('/estoque'),
     },
     {
       title: 'Entregas do Mês',
@@ -253,12 +274,12 @@ export default function Dashboard() {
       onClick: () => navigate('/entrega-epi'),
     },
     {
-      title: 'Colaboradores',
-      value: stats.totalColabs,
-      subtitle: 'ativos',
-      severity: 'ok' as const,
-      icon: Users,
-      onClick: () => navigate('/colaboradores'),
+      title: 'Estoque Baixo',
+      value: stats.estoqueBaixo,
+      subtitle: 'itens abaixo do mínimo',
+      severity: stats.estoqueBaixo > 0 ? 'danger' as const : 'ok' as const,
+      icon: AlertTriangle,
+      onClick: () => navigate('/estoque?status=baixo'),
     },
     {
       title: 'Alertas',
@@ -353,7 +374,7 @@ export default function Dashboard() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {cards.map((card) => {
           const style = severityStyles[card.severity];
           return (
