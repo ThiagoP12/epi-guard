@@ -13,8 +13,8 @@ import SelfieCapture from '@/components/SelfieCapture';
 import ComprovanteSolicitacao from '@/components/ComprovanteSolicitacao';
 import {
   LogOut, Package, History, ClipboardCheck, CheckCircle, Clock, XCircle,
-  Loader2, Shield, FileText, User, Building2, Hash, MapPin,
-  Camera, PenTool, Send, AlertTriangle, HardHat, Eye
+  Loader2, FileText, User, Building2, Hash,
+  Camera, PenTool, Send, AlertTriangle, HardHat, Eye, Shield
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -284,36 +284,36 @@ export default function PortalColaborador() {
   const initials = colaborador.nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Top Bar */}
-      <header className="bg-primary sticky top-0 z-20">
+    <div className="min-h-screen bg-muted/30 flex flex-col">
+      {/* Top Bar - gradient */}
+      <header className="bg-gradient-to-r from-primary to-primary/80 sticky top-0 z-20 shadow-md">
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-12">
             <div className="flex items-center gap-2">
-              <HardHat size={18} className="text-primary-foreground" />
+              <div className="w-7 h-7 rounded-lg bg-primary-foreground/15 flex items-center justify-center">
+                <HardHat size={16} className="text-primary-foreground" />
+              </div>
               <span className="text-sm font-bold text-primary-foreground">Portal EPI</span>
             </div>
-            <button
-              onClick={signOut}
-              className="flex items-center gap-1.5 text-primary-foreground/70 hover:text-primary-foreground text-xs transition-colors px-2.5 py-1.5 rounded-md hover:bg-primary-foreground/10"
-            >
-              <LogOut size={14} />
-              <span>Sair</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full bg-primary-foreground/15 flex items-center justify-center text-[10px] font-bold text-primary-foreground">
+                {initials}
+              </div>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-5">
-        {/* Welcome */}
-        <div className="mb-5">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary shrink-0">
+      {/* Hero card */}
+      <div className="bg-gradient-to-b from-primary/5 to-transparent">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-5 pb-3">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 rounded-xl bg-primary/10 border-2 border-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">
               {initials}
             </div>
             <div className="min-w-0">
               <h1 className="text-base font-bold text-foreground truncate">
-                {colaborador.nome}
+                Olá, {colaborador.nome.split(' ')[0]} 👋
               </h1>
               <p className="text-xs text-muted-foreground mt-0.5 truncate">
                 {colaborador.funcao} • {colaborador.setor}
@@ -325,14 +325,14 @@ export default function PortalColaborador() {
           {/* Info pills */}
           <div className="flex flex-wrap gap-2">
             <InfoPill icon={Hash} label="Matrícula" value={colaborador.matricula} />
-            <InfoPill icon={Shield} label="Versão" value="1.0.0" />
-            <InfoPill icon={MapPin} label="Setor" value={colaborador.setor} />
-            <InfoPill icon={Building2} label="Revenda" value={colaborador.empresa?.nome || '—'} />
+            <InfoPill icon={Building2} label="Empresa" value={colaborador.empresa?.nome || '—'} />
           </div>
         </div>
+      </div>
 
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex-1 w-full">
         {/* Stats row */}
-        <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-3 gap-3 mb-5">
           <StatCard
             label="Solicitações"
             value={solicitacoes.length}
@@ -345,49 +345,49 @@ export default function PortalColaborador() {
             detail={entregas.length > 0 ? `Último: ${format(new Date(entregas[0].data_hora), 'dd/MM')}` : 'Nenhum ainda'}
           />
           <StatCard
-            label="Estoque Disponível"
+            label="Estoque"
             value={produtos.length}
             detail="Itens disponíveis"
           />
         </div>
 
         {/* Tab Navigation */}
-        <div className="border-b mb-6">
-          <div className="flex gap-0">
-            {navItems.map(item => (
-              <button
-                key={item.key}
-                onClick={() => setActiveSection(item.key)}
-                className={cn(
-                  'flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors relative',
+        <div className="bg-card rounded-xl border shadow-sm mb-5 p-1 flex gap-1">
+          {navItems.map(item => (
+            <button
+              key={item.key}
+              onClick={() => setActiveSection(item.key)}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium transition-all rounded-lg',
+                activeSection === item.key
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              )}
+            >
+              <item.icon size={14} />
+              <span className="hidden sm:inline">{item.label}</span>
+              {item.badge > 0 && (
+                <span className={cn(
+                  'text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1',
                   activeSection === item.key
-                    ? 'text-primary'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <item.icon size={15} />
-                <span className="hidden sm:inline">{item.label}</span>
-                {item.badge > 0 && (
-                  <span className="bg-primary text-primary-foreground text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
-                    {item.badge}
-                  </span>
-                )}
-                {activeSection === item.key && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full" />
-                )}
-              </button>
-            ))}
-          </div>
+                    ? 'bg-primary-foreground/20 text-primary-foreground'
+                    : 'bg-primary/10 text-primary'
+                )}>
+                  {item.badge}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
 
         {/* Content Sections */}
-        <div className="pb-10">
+        <div className="pb-6">
           {/* SOLICITAR */}
           {activeSection === 'solicitar' && (
-            <div className="space-y-6 animate-in fade-in-0 duration-200">
+            <div className="space-y-5 animate-in fade-in-0 duration-200">
               {/* Form Card */}
               <section className="bg-card rounded-xl border shadow-sm">
-                <div className="px-5 py-4 border-b">
+                <div className="px-5 py-4 border-b bg-primary/5">
                   <h3 className="text-sm font-semibold text-foreground">Dados da Solicitação</h3>
                   <p className="text-xs text-muted-foreground mt-0.5">Selecione o item e preencha as informações</p>
                 </div>
@@ -460,7 +460,7 @@ export default function PortalColaborador() {
 
               {/* Selfie */}
               <section className="bg-card rounded-xl border shadow-sm">
-                <div className="px-5 py-4 border-b">
+                <div className="px-5 py-4 border-b bg-primary/5">
                   <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                     <Camera size={14} className="text-primary" />
                     Selfie do Colaborador
@@ -473,7 +473,7 @@ export default function PortalColaborador() {
 
               {/* Signature */}
               <section className="bg-card rounded-xl border shadow-sm">
-                <div className="px-5 py-4 border-b">
+                <div className="px-5 py-4 border-b bg-primary/5">
                   <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                     <PenTool size={14} className="text-primary" />
                     Assinatura Digital
@@ -486,7 +486,7 @@ export default function PortalColaborador() {
 
               {/* Declaration + Submit */}
               <section className="bg-card rounded-xl border shadow-sm p-5 space-y-4">
-                <div className="flex items-start gap-3 p-3.5 rounded-lg bg-muted/50 border">
+                <div className="flex items-start gap-3 p-3.5 rounded-lg bg-primary/5 border border-primary/10">
                   <Checkbox
                     id="declaracao"
                     checked={declaracao}
@@ -543,31 +543,27 @@ export default function PortalColaborador() {
                           {cfg.label}
                         </span>
                       </div>
-
-                      <div className="mt-3 pt-2.5 border-t flex items-center justify-between">
-                        <span className="text-[10px] text-muted-foreground">
-                          {new Date(s.created_at).toLocaleString('pt-BR')}
+                      <div className="flex items-center justify-between mt-3 pt-2.5 border-t">
+                        <span className="text-[11px] text-muted-foreground">
+                          {format(new Date(s.created_at), 'dd/MM/yyyy HH:mm')}
                         </span>
-                        {(s.status === 'aprovado' || s.status === 'entregue') && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-[11px] gap-1 px-2"
-                            onClick={() => { setComprovanteSolicitacao(s); setComprovanteOpen(true); }}
-                          >
-                            <Eye size={12} /> Comprovante
-                          </Button>
-                        )}
-                      </div>
-
-                      {s.motivo_rejeicao && (
-                        <div className="mt-2 flex items-start gap-2 bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2 text-[11px] text-destructive">
-                          <XCircle size={12} className="shrink-0 mt-0.5" />
-                          <span>Motivo: {s.motivo_rejeicao}</span>
+                        <div className="flex gap-1.5">
+                          {(s.status === 'aprovado' || s.status === 'entregue') && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-[11px] gap-1 px-2"
+                              onClick={() => { setComprovanteSolicitacao(s); setComprovanteOpen(true); }}
+                            >
+                              <Eye size={12} /> Comprovante
+                            </Button>
+                          )}
                         </div>
-                      )}
-                      {s.observacao && (
-                        <p className="text-[11px] text-muted-foreground mt-1.5 italic">Obs: {s.observacao}</p>
+                      </div>
+                      {s.motivo_rejeicao && (
+                        <div className="mt-2 p-2 rounded bg-destructive/5 border border-destructive/10">
+                          <p className="text-[11px] text-destructive"><strong>Motivo:</strong> {s.motivo_rejeicao}</p>
+                        </div>
                       )}
                     </div>
                   );
@@ -578,25 +574,26 @@ export default function PortalColaborador() {
 
           {/* RECEBIMENTOS */}
           {activeSection === 'recebimentos' && (
-            <div className="space-y-4 animate-in fade-in-0 duration-200">
+            <div className="space-y-3 animate-in fade-in-0 duration-200">
               {/* Summary */}
-              {entregas.length > 0 && (() => {
-                const totals = new Map<string, { nome: string; ca: string | null; total: number }>();
-                entregas.forEach(e => e.itens.forEach(i => {
-                  const prev = totals.get(i.nome_snapshot);
-                  if (prev) prev.total += i.quantidade;
-                  else totals.set(i.nome_snapshot, { nome: i.nome_snapshot, ca: i.ca_snapshot, total: i.quantidade });
+              {(() => {
+                const totals: { nome: string; ca: string | null; total: number }[] = [];
+                entregas.forEach(e => e.itens.forEach(item => {
+                  const existing = totals.find(t => t.nome === item.nome_snapshot);
+                  if (existing) existing.total += item.quantidade;
+                  else totals.push({ nome: item.nome_snapshot, ca: item.ca_snapshot, total: item.quantidade });
                 }));
-                const items = [...totals.values()].sort((a, b) => b.total - a.total);
-                const grandTotal = items.reduce((s, i) => s + i.total, 0);
+                if (totals.length === 0) return null;
                 return (
-                  <div className="bg-card rounded-xl border shadow-sm p-5">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">Resumo Total</h3>
-                      <span className="text-xs font-bold text-primary">{grandTotal} itens recebidos</span>
+                  <div className="bg-card rounded-xl border shadow-sm overflow-hidden mb-2">
+                    <div className="px-5 py-3 border-b bg-primary/5">
+                      <h3 className="text-xs font-semibold text-foreground flex items-center gap-2">
+                        <ClipboardCheck size={13} className="text-primary" />
+                        EPIs em Uso
+                      </h3>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {items.map(item => (
+                    <div className="p-4 space-y-1.5">
+                      {totals.map(item => (
                         <div key={item.nome} className="flex items-center justify-between bg-muted/40 rounded-lg px-3 py-2 text-xs">
                           <div className="flex-1 min-w-0">
                             <span className="font-medium text-foreground truncate block">{item.nome}</span>
@@ -645,6 +642,22 @@ export default function PortalColaborador() {
           )}
         </div>
       </main>
+
+      {/* Footer with Sair */}
+      <footer className="border-t bg-card py-4 mt-auto">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 flex items-center justify-between">
+          <p className="text-[11px] text-muted-foreground">
+            Portal EPI • v1.0.0
+          </p>
+          <button
+            onClick={signOut}
+            className="flex items-center gap-1.5 text-muted-foreground hover:text-destructive text-xs transition-colors px-3 py-2 rounded-lg hover:bg-destructive/5 border border-transparent hover:border-destructive/20"
+          >
+            <LogOut size={14} />
+            <span>Sair da conta</span>
+          </button>
+        </div>
+      </footer>
 
       <ComprovanteSolicitacao
         open={comprovanteOpen}
