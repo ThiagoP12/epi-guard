@@ -16,6 +16,7 @@ interface Colaborador {
   id: string;
   nome: string;
   matricula: string;
+  cpf: string | null;
   setor: string;
   funcao: string;
   email: string | null;
@@ -36,7 +37,7 @@ interface EntregaHistorico {
 }
 
 const emptyForm = {
-  nome: '', matricula: '', setor: '', funcao: '', email: '',
+  nome: '', matricula: '', cpf: '', setor: '', funcao: '', email: '',
   data_admissao: new Date().toISOString().slice(0, 10),
   tamanho_uniforme: '', tamanho_bota: '', tamanho_luva: '',
 };
@@ -116,6 +117,7 @@ export default function Colaboradores() {
     setForm({
       nome: c.nome,
       matricula: c.matricula,
+      cpf: c.cpf || '',
       setor: c.setor,
       funcao: c.funcao,
       email: c.email || '',
@@ -137,6 +139,7 @@ export default function Colaboradores() {
     const payload = {
       nome: form.nome,
       matricula: form.matricula,
+      cpf: form.cpf || null,
       setor: form.setor,
       funcao: form.funcao,
       email: form.email || null,
@@ -410,9 +413,15 @@ export default function Colaboradores() {
             <DialogTitle>{editingId ? '✏️ Editar Colaborador' : '➕ Novo Colaborador'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-            <div>
-              <Label className="text-xs">Nome Completo *</Label>
-              <Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} className="mt-1 h-9" placeholder="Nome completo" />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Nome Completo *</Label>
+                <Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} className="mt-1 h-9" placeholder="Nome completo" />
+              </div>
+              <div>
+                <Label className="text-xs">CPF</Label>
+                <Input value={form.cpf} onChange={(e) => setForm({ ...form, cpf: e.target.value })} className="mt-1 h-9" placeholder="000.000.000-00" />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -515,6 +524,7 @@ export default function Colaboradores() {
                 <div className="grid grid-cols-2 gap-3">
                   {[
                     ['Função', detailColab.funcao],
+                    ['CPF', detailColab.cpf || '—'],
                     ['E-mail', detailColab.email || '—'],
                     ['Admissão', detailColab.data_admissao ? formatDateShort(detailColab.data_admissao) : '—'],
                     ['Setor', detailColab.setor],

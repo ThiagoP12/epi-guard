@@ -14,7 +14,7 @@ import { useEmpresa } from '@/contexts/EmpresaContext';
 
 const motivos = ['Primeira entrega', 'Troca por desgaste', 'Perda', 'Danificado', 'Outro'] as const;
 
-interface Colaborador { id: string; nome: string; matricula: string; email: string | null; setor: string; funcao: string; }
+interface Colaborador { id: string; nome: string; matricula: string; cpf: string | null; email: string | null; setor: string; funcao: string; }
 interface Produto { id: string; nome: string; ca: string | null; tipo: string; saldo: number; data_validade: string | null; custo_unitario: number; }
 
 export default function EntregaEPI() {
@@ -64,7 +64,7 @@ export default function EntregaEPI() {
 
   useEffect(() => {
     const load = async () => {
-      let colabQuery = supabase.from('colaboradores').select('id, nome, matricula, email, setor, funcao').eq('ativo', true).order('nome');
+      let colabQuery = supabase.from('colaboradores').select('id, nome, matricula, cpf, email, setor, funcao').eq('ativo', true).order('nome');
       if (selectedEmpresa) colabQuery = colabQuery.eq('empresa_id', selectedEmpresa.id);
       const { data: colabs } = await colabQuery;
       if (colabs) setColaboradores(colabs as Colaborador[]);
@@ -101,6 +101,22 @@ export default function EntregaEPI() {
     setSubmitting(true);
 
     try {
+      // Capture real IP
+      let ipOrigem = 'browser';
+      try {
+        const ipRes = await fetch('https://api.ipify.org?format=json');
+        const ipData = await ipRes.json();
+        ipOrigem = ipData.ip || 'browser';
+      } catch { /* fallback */ }
+
+      // Generate SHA-256 hash of the signature + timestamp for document integrity
+      const timestamp = new Date().toISOString();
+      const hashInput = `${assinatura}|${colaboradorId}|${produtoId}|${quantidade}|${motivo}|${timestamp}|${ipOrigem}`;
+      const encoder = new TextEncoder();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(hashInput));
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const pdfHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
       // Create entrega
       const { data: entrega, error: entregaError } = await supabase.from('entregas_epi').insert({
         colaborador_id: colaboradorId,
@@ -109,10 +125,11 @@ export default function EntregaEPI() {
         observacao: observacao || null,
         assinatura_base64: assinatura,
         declaracao_aceita: true,
-        ip_origem: 'browser',
+        ip_origem: ipOrigem,
         user_agent: navigator.userAgent,
-        versao_termo: '1.0',
+        versao_termo: '2.0',
         empresa_id: selectedEmpresa?.id || null,
+        pdf_hash: pdfHash,
       }).select('id').single();
 
       if (entregaError) throw entregaError;
@@ -194,9 +211,13 @@ export default function EntregaEPI() {
               </SelectContent>
             </Select>
             {selectedColab && (
-              <p className="text-[11px] text-muted-foreground mt-1.5 pl-0.5">
-                {selectedColab.setor} • {selectedColab.funcao}
-              </p>
+              <div className="text-[11px] text-muted-foreground mt-1.5 pl-0.5 space-y-0.5">
+                <p>{selectedColab.setor} • {selectedColab.funcao}</p>
+                <p>
+                  {selectedColab.cpf && <span className="font-mono">CPF: {selectedColab.cpf} • </span>}
+                  {selectedColab.email && <span>{selectedColab.email}</span>}
+                </p>
+              </div>
             )}
           </div>
 
@@ -246,7 +267,13 @@ export default function EntregaEPI() {
           <div className="flex items-start gap-2.5 p-3 rounded-lg bg-muted/40 border border-muted">
             <Checkbox id="declaracao" checked={declaracao} onCheckedChange={(v) => setDeclaracao(v === true)} className="mt-0.5" />
             <label htmlFor="declaracao" className="text-[11px] text-muted-foreground leading-relaxed cursor-pointer">
-              Declaro que recebi os Equipamentos de Proteção Individual (EPI) listados acima e me comprometo a utilizá-los adequadamente durante a execução de minhas atividades, conforme orientações recebidas e disposições da NR-06.
+              <strong>DECLARO</strong>, para todos os fins de direito, que recebi os Equipamentos de Proteção Individual (EPI) listados acima, 
+              em perfeito estado de conservação e funcionamento. Fui devidamente orientado(a) e treinado(a) sobre o uso correto, guarda, 
+              conservação e higienização dos mesmos, conforme determina a NR-06 (Portaria MTb nº 3.214/78). 
+              <strong>COMPROMETO-ME</strong> a utilizá-los exclusivamente para a finalidade a que se destinam, responsabilizar-me pela guarda 
+              e conservação, e comunicar qualquer alteração que os torne impróprios para uso. Estou ciente de que a assinatura digital 
+              aqui aposta possui validade jurídica conforme a MP 2.200-2/2001 e que este documento é protegido por hash criptográfico SHA-256 
+              que garante sua integridade e imutabilidade.
             </label>
           </div>
 
