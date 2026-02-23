@@ -163,7 +163,7 @@ function ProtectedRoutes() {
           <Route path="/colaboradores" element={<Colaboradores />} />
           <Route path="/solicitacoes" element={<Solicitacoes />} />
           <Route path="/historico-entregas" element={<HistoricoEntregas />} />
-          <Route path="/auditoria" element={<Auditoria />} />
+          
           <Route path="/controle-epc" element={<ControleEPC />} />
           <Route path="/relatorios" element={<Relatorios />} />
           <Route path="/usuarios" element={<Usuarios />} />
