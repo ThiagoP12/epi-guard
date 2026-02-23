@@ -440,7 +440,6 @@ export default function PortalColaborador() {
 
           <div className="flex flex-wrap gap-1.5 sm:gap-2">
             <InfoPill icon={Hash} label="Mat" value={colaborador.matricula} />
-            <InfoPill icon={Building2} label="Empresa" value={colaborador.empresa?.nome || '—'} />
           </div>
         </div>
       </div>
