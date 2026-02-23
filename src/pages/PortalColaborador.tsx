@@ -251,46 +251,36 @@ export default function PortalColaborador() {
   return (
     <div className="min-h-screen bg-background">
       {/* Top Bar */}
-      <header className="bg-card border-b sticky top-0 z-20">
+      <header className="bg-primary sticky top-0 z-20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
-          <div className="flex items-center justify-between h-14">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <HardHat size={16} className="text-primary-foreground" />
-              </div>
-              <div className="leading-none">
-                <span className="text-sm font-bold text-foreground">Portal EPI</span>
-              </div>
+          <div className="flex items-center justify-between h-12">
+            <div className="flex items-center gap-2">
+              <HardHat size={18} className="text-primary-foreground" />
+              <span className="text-sm font-bold text-primary-foreground">Portal EPI</span>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
-                <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
-                  {initials}
-                </div>
-                <span className="font-medium text-foreground">{colaborador.nome.split(' ')[0]}</span>
-              </div>
-              <div className="w-px h-5 bg-border hidden sm:block" />
-              <button
-                onClick={signOut}
-                className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground text-xs transition-colors px-2 py-1.5 rounded-md hover:bg-muted"
-              >
-                <LogOut size={14} />
-                <span className="hidden sm:inline">Sair</span>
-              </button>
-            </div>
+            <button
+              onClick={signOut}
+              className="flex items-center gap-1.5 text-primary-foreground/70 hover:text-primary-foreground text-xs transition-colors px-2.5 py-1.5 rounded-md hover:bg-primary-foreground/10"
+            >
+              <LogOut size={14} />
+              <span>Sair</span>
+            </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
-        {/* Welcome + Info */}
-        <div className="mb-6">
-          <div className="flex items-start sm:items-center justify-between gap-4 mb-4 flex-col sm:flex-row">
-            <div>
-              <h1 className="text-lg font-bold text-foreground">
-                Olá, {colaborador.nome.split(' ')[0]} 👋
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-5">
+        {/* Welcome */}
+        <div className="mb-5">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary shrink-0">
+              {initials}
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-base font-bold text-foreground truncate">
+                {colaborador.nome}
               </h1>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">
                 {colaborador.funcao} • {colaborador.setor}
                 {colaborador.empresa?.nome && <> • {colaborador.empresa.nome}</>}
               </p>
