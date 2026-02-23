@@ -4,9 +4,7 @@ import {
   LayoutDashboard,
   Package,
   Users,
-  
   Shield,
-  FileSearch,
   BarChart3,
   Settings,
   LogOut,
@@ -30,13 +28,10 @@ import { useTheme } from '@/hooks/useTheme';
 
 const menuItems = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/', phase: 1 },
-  { label: 'Revendas', icon: Building2, path: '/revendas', phase: 1 },
+  { label: 'Protocolos', icon: Construction, path: '/solicitacoes', phase: 1 },
   { label: 'Estoque', icon: Package, path: '/estoque', phase: 1 },
   { label: 'Colaboradores', icon: Users, path: '/colaboradores', phase: 1 },
-  
-  { label: 'Solicitações', icon: Construction, path: '/solicitacoes', phase: 1 },
   { label: 'Histórico', icon: History, path: '/historico-entregas', phase: 1 },
-  { label: 'Auditoria', icon: FileSearch, path: '/auditoria', phase: 1 },
   { label: 'Controle de EPC', icon: Shield, path: '/controle-epc', phase: 2 },
   { label: 'Relatórios', icon: BarChart3, path: '/relatorios', phase: 2 },
   { label: 'Configurações', icon: Settings, path: '/configuracoes', phase: 1 },
