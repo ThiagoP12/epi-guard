@@ -315,7 +315,7 @@ export default function ColaboradoresManager() {
                 <InfoItem icon={CreditCard} label="CPF" value={formatCpf(detailColab.cpf)} mono />
                 <InfoItem icon={MapPin} label="Setor" value={detailColab.setor} />
                 <InfoItem icon={Briefcase} label="Função" value={detailColab.funcao} />
-                <InfoItem icon={Mail} label="E-mail" value={detailColab.email || '—'} />
+                
                 <InfoItem icon={Calendar} label="Admissão" value={formatDate(detailColab.data_admissao)} />
                 {detailColab.centro_custo && <InfoItem icon={CreditCard} label="Centro de Custo" value={detailColab.centro_custo} />}
               </div>
