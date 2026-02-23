@@ -15,6 +15,7 @@ import ControleEPC from "./pages/ControleEPC";
 import Relatorios from "./pages/Relatorios";
 import Configuracoes from "./pages/Configuracoes";
 import Solicitacoes from "./pages/Solicitacoes";
+import Auditoria from "./pages/Auditoria";
 import AdminTenants from "./pages/AdminTenants";
 import PortalColaborador from "./pages/PortalColaborador";
 import NotFound from "./pages/NotFound";
@@ -157,6 +158,7 @@ function ProtectedRoutes() {
           <Route path="/colaboradores" element={<Colaboradores />} />
           <Route path="/solicitacoes" element={<Solicitacoes />} />
           <Route path="/historico-entregas" element={<HistoricoEntregas />} />
+          <Route path="/auditoria" element={<Auditoria />} />
           <Route path="/controle-epc" element={<ControleEPC />} />
           <Route path="/relatorios" element={<Relatorios />} />
           <Route path="/configuracoes" element={<Configuracoes />} />
