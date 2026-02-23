@@ -18,6 +18,7 @@ import {
   Check,
   Sun,
   Moon,
+  History,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -32,6 +33,7 @@ const menuItems = [
   { label: 'Estoque', icon: Package, path: '/estoque', phase: 1 },
   { label: 'Colaboradores', icon: Users, path: '/colaboradores', phase: 1 },
   { label: 'Entrega de EPI', icon: ClipboardCheck, path: '/entrega-epi', phase: 1 },
+  { label: 'Histórico', icon: History, path: '/historico-entregas', phase: 1 },
   { label: 'Controle de EPC', icon: Shield, path: '/controle-epc', phase: 2 },
   { label: 'Relatórios', icon: BarChart3, path: '/relatorios', phase: 2 },
   { label: 'Configurações', icon: Settings, path: '/configuracoes', phase: 1 },
