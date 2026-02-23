@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { Save, Upload, X, ImageIcon } from 'lucide-react';
+import { Save, Upload, X, ImageIcon, Camera, User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Config {
   id: string;
@@ -31,8 +32,11 @@ export default function Configuracoes() {
   const [saving, setSaving] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const { user, profile } = useAuth();
 
   const loadLogo = async () => {
     const { data } = await supabase.storage.from('empresa').list('', { limit: 10 });
@@ -113,6 +117,58 @@ export default function Configuracoes() {
     setSaving(false);
   };
 
+  const handleUploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Erro', description: 'Selecione um arquivo de imagem.', variant: 'destructive' });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: 'Erro', description: 'Imagem deve ter no máximo 2MB.', variant: 'destructive' });
+      return;
+    }
+    setUploadingAvatar(true);
+    const ext = file.name.split('.').pop();
+    const filePath = `${user.id}/avatar.${ext}`;
+
+    // Remove old avatars
+    const { data: existing } = await supabase.storage.from('avatars').list(user.id, { limit: 10 });
+    const oldFiles = existing?.filter(f => f.name.startsWith('avatar')) || [];
+    if (oldFiles.length > 0) {
+      await supabase.storage.from('avatars').remove(oldFiles.map(f => `${user.id}/${f.name}`));
+    }
+
+    const { error } = await supabase.storage.from('avatars').upload(filePath, file, { upsert: true });
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      setUploadingAvatar(false);
+      return;
+    }
+
+    const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(filePath);
+    const avatarUrl = urlData.publicUrl + '?t=' + Date.now();
+
+    await supabase.from('profiles').update({ avatar_url: avatarUrl }).eq('id', user.id);
+    setUploadingAvatar(false);
+    toast({ title: 'Foto atualizada!' });
+    // Reload page to refresh context
+    window.location.reload();
+    if (avatarInputRef.current) avatarInputRef.current.value = '';
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (!user) return;
+    const { data: existing } = await supabase.storage.from('avatars').list(user.id, { limit: 10 });
+    const oldFiles = existing?.filter(f => f.name.startsWith('avatar')) || [];
+    if (oldFiles.length > 0) {
+      await supabase.storage.from('avatars').remove(oldFiles.map(f => `${user.id}/${f.name}`));
+    }
+    await supabase.from('profiles').update({ avatar_url: null }).eq('id', user.id);
+    toast({ title: 'Foto removida.' });
+    window.location.reload();
+  };
+
   const empresaKeys = ['empresa_razao_social', 'empresa_cnpj', 'empresa_endereco', 'empresa_telefone'];
   const paramKeys = ['dias_alerta_vencimento', 'periodicidade_inspecao_epc', 'criterio_epi_atualizado_meses', 'data_ultimo_acidente'];
 
@@ -120,6 +176,44 @@ export default function Configuracoes() {
     <div>
       <h1 className="text-xl font-semibold text-foreground mb-5">Configurações</h1>
       <div className="max-w-2xl space-y-6">
+        {/* Meu Perfil */}
+        <div className="bg-card rounded-lg border p-5">
+          <h2 className="text-sm font-semibold mb-4">Meu Perfil</h2>
+          <div className="flex items-center gap-5">
+            <div className="relative group">
+              <div className="w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center overflow-hidden bg-muted/30 shrink-0">
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt="Foto de perfil" className="w-full h-full object-cover" />
+                ) : (
+                  <User size={32} className="text-muted-foreground/40" />
+                )}
+              </div>
+              <button
+                onClick={() => avatarInputRef.current?.click()}
+                className="absolute inset-0 rounded-full bg-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                disabled={uploadingAvatar}
+              >
+                <Camera size={20} className="text-primary-foreground" />
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">{profile?.nome || 'Usuário'}</p>
+              <p className="text-xs text-muted-foreground">{profile?.email}</p>
+              <div className="flex gap-2 mt-2">
+                <Button variant="outline" size="sm" onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar}>
+                  <Upload size={14} className="mr-1" /> {uploadingAvatar ? 'Enviando...' : 'Alterar foto'}
+                </Button>
+                {profile?.avatar_url && (
+                  <Button variant="ghost" size="sm" onClick={handleRemoveAvatar} className="text-destructive">
+                    <X size={14} className="mr-1" /> Remover
+                  </Button>
+                )}
+              </div>
+              <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleUploadAvatar} className="hidden" />
+              <p className="text-[10px] text-muted-foreground">PNG, JPG. Máx 2MB.</p>
+            </div>
+          </div>
+        </div>
         {/* Logo da Empresa */}
         <div className="bg-card rounded-lg border p-5">
           <h2 className="text-sm font-semibold mb-4">Logo da Empresa</h2>
