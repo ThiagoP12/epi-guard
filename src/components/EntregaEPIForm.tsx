@@ -523,7 +523,7 @@ export default function EntregaEPIForm({ colaborador: presetColab, onComplete }:
           )}
 
           <div>
-            <SelfieCapture onCaptureChange={setSelfie} label="Selfie de Verificação do Colaborador *" />
+            <SelfieCapture onCaptureChange={setSelfie} label="Selfie do Colaborador *" />
           </div>
 
           <div>
