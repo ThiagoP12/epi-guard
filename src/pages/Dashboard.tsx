@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, ClipboardCheck, Users, AlertTriangle, TrendingUp, Clock, ArrowRight, Calendar, Shield, Award, Medal } from 'lucide-react';
+import { Package, ClipboardCheck, Users, AlertTriangle, TrendingUp, Clock, ArrowRight, Calendar, Shield, Award, Medal, FileDown, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { StatusBadge } from '@/components/StatusBadge';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
@@ -41,6 +42,65 @@ export default function Dashboard() {
   const [topEPIs, setTopEPIs] = useState<RankingItem[]>([]);
   const [topEPCs, setTopEPCs] = useState<RankingItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const dashboardRef = useRef<HTMLDivElement>(null);
+
+  const handleExportPdf = useCallback(async () => {
+    if (!dashboardRef.current) return;
+    setExporting(true);
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+
+      const canvas = await html2canvas(dashboardRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = pdf.internal.pageSize.getHeight();
+
+      // Header
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Relatório Gerencial — Dashboard', 14, 14);
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(120);
+      const empresa = selectedEmpresa?.nome || 'Todas as empresas';
+      pdf.text(`${empresa} • Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, 20);
+      pdf.setTextColor(0);
+
+      // Image
+      const marginTop = 26;
+      const availH = pdfH - marginTop - 8;
+      const imgRatio = canvas.width / canvas.height;
+      const availRatio = (pdfW - 28) / availH;
+      let imgW: number, imgH: number;
+      if (imgRatio > availRatio) {
+        imgW = pdfW - 28;
+        imgH = imgW / imgRatio;
+      } else {
+        imgH = availH;
+        imgW = imgH * imgRatio;
+      }
+      pdf.addImage(imgData, 'PNG', 14, marginTop, imgW, imgH);
+
+      // Footer
+      pdf.setFontSize(7);
+      pdf.setTextColor(160);
+      pdf.text('Sistema de Gestão EPI & EPC • Documento gerado automaticamente', 14, pdfH - 4);
+
+      pdf.save(`Dashboard_${empresa.replace(/\\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (err) {
+      console.error('PDF export error:', err);
+    }
+    setExporting(false);
+  }, [selectedEmpresa]);
 
   useEffect(() => {
     const loadAll = async () => {
@@ -364,14 +424,22 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">Dashboard</h1>
-        {selectedEmpresa && (
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Dados de <span className="font-medium text-foreground">{selectedEmpresa.nome}</span>
-          </p>
-        )}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">Dashboard</h1>
+          {selectedEmpresa && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Dados de <span className="font-medium text-foreground">{selectedEmpresa.nome}</span>
+            </p>
+          )}
+        </div>
+        <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={handleExportPdf} disabled={exporting || loading}>
+          {exporting ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />}
+          Exportar PDF
+        </Button>
       </div>
+
+      <div ref={dashboardRef}>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
@@ -507,6 +575,7 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+      </div>{/* end dashboardRef */}
     </div>
   );
 }
