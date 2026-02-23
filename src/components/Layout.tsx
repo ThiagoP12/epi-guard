@@ -13,12 +13,15 @@ import {
   X,
   Construction,
   ChevronRight,
+  Building2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEmpresa } from '@/contexts/EmpresaContext';
 
 const menuItems = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/', phase: 1 },
+  { label: 'Revendas', icon: Building2, path: '/revendas', phase: 1 },
   { label: 'Estoque', icon: Package, path: '/estoque', phase: 1 },
   { label: 'Colaboradores', icon: Users, path: '/colaboradores', phase: 1 },
   { label: 'Entrega de EPI', icon: ClipboardCheck, path: '/entrega-epi', phase: 1 },
@@ -31,6 +34,7 @@ export default function Layout() {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { profile, role, signOut } = useAuth();
+  const { selectedEmpresa } = useEmpresa();
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
@@ -65,8 +69,15 @@ export default function Layout() {
           </div>
         </div>
 
-        {/* Breadcrumb (desktop) */}
+        {/* Breadcrumb + Empresa (desktop) */}
         <div className="hidden md:flex items-center gap-1.5 text-primary-foreground/50 text-xs absolute left-1/2 -translate-x-1/2">
+          {selectedEmpresa && (
+            <>
+              <Building2 size={11} />
+              <span className="text-primary-foreground/70 font-medium">{selectedEmpresa.nome}</span>
+              <span className="text-primary-foreground/30 mx-0.5">|</span>
+            </>
+          )}
           <span>Início</span>
           {currentPage && currentPage.path !== '/' && (
             <>

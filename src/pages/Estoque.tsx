@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { useEmpresa } from '@/contexts/EmpresaContext';
 
 interface ProdutoComSaldo {
   id: string;
@@ -53,10 +54,15 @@ export default function Estoque() {
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const { toast } = useToast();
+  const { selectedEmpresa } = useEmpresa();
 
   const loadProdutos = async () => {
     setLoading(true);
-    const { data } = await supabase.from('produtos').select('*').eq('ativo', true).order('codigo_interno');
+    let query = supabase.from('produtos').select('*').eq('ativo', true).order('codigo_interno');
+    if (selectedEmpresa) {
+      query = query.eq('empresa_id', selectedEmpresa.id);
+    }
+    const { data } = await query;
     if (!data) { setLoading(false); return; }
 
     const withSaldo: ProdutoComSaldo[] = [];
@@ -68,7 +74,7 @@ export default function Estoque() {
     setLoading(false);
   };
 
-  useEffect(() => { loadProdutos(); }, []);
+  useEffect(() => { loadProdutos(); }, [selectedEmpresa]);
 
   const filtered = produtos.filter((p) => {
     const s = search.toLowerCase();
@@ -108,6 +114,7 @@ export default function Estoque() {
       usuario_id: user.id,
       referencia_nf: nf || null,
       observacao: obs || null,
+      empresa_id: selectedEmpresa?.id || null,
     });
 
     setSubmitting(false);

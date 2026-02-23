@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { useEmpresa } from '@/contexts/EmpresaContext';
 
 interface Colaborador {
   id: string;
@@ -36,6 +37,7 @@ export default function Colaboradores() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { selectedEmpresa } = useEmpresa();
 
   // Histórico state
   const [historicoOpen, setHistoricoOpen] = useState(false);
@@ -46,12 +48,16 @@ export default function Colaboradores() {
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase.from('colaboradores').select('*').eq('ativo', true).order('nome');
+    let query = supabase.from('colaboradores').select('*').eq('ativo', true).order('nome');
+    if (selectedEmpresa) {
+      query = query.eq('empresa_id', selectedEmpresa.id);
+    }
+    const { data } = await query;
     if (data) setColaboradores(data as Colaborador[]);
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [selectedEmpresa]);
 
   const filtered = colaboradores.filter((c) => {
     const s = search.toLowerCase();
@@ -67,6 +73,7 @@ export default function Colaboradores() {
       setor: form.setor,
       funcao: form.funcao,
       email: form.email || null,
+      empresa_id: selectedEmpresa?.id || null,
     });
     setSubmitting(false);
     if (error) {

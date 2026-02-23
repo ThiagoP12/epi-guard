@@ -10,6 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import SignatureCanvas from '@/components/SignatureCanvas';
+import { useEmpresa } from '@/contexts/EmpresaContext';
 
 const motivos = ['Primeira entrega', 'Troca por desgaste', 'Perda', 'Danificado', 'Outro'] as const;
 
@@ -59,12 +60,18 @@ export default function EntregaEPI() {
     setDownloadingPdf(false);
   };
 
+  const { selectedEmpresa } = useEmpresa();
+
   useEffect(() => {
     const load = async () => {
-      const { data: colabs } = await supabase.from('colaboradores').select('id, nome, matricula, email, setor, funcao').eq('ativo', true).order('nome');
+      let colabQuery = supabase.from('colaboradores').select('id, nome, matricula, email, setor, funcao').eq('ativo', true).order('nome');
+      if (selectedEmpresa) colabQuery = colabQuery.eq('empresa_id', selectedEmpresa.id);
+      const { data: colabs } = await colabQuery;
       if (colabs) setColaboradores(colabs as Colaborador[]);
 
-      const { data: prods } = await supabase.from('produtos').select('*').eq('ativo', true).order('nome');
+      let prodQuery = supabase.from('produtos').select('*').eq('ativo', true).order('nome');
+      if (selectedEmpresa) prodQuery = prodQuery.eq('empresa_id', selectedEmpresa.id);
+      const { data: prods } = await prodQuery;
       if (prods) {
         const withSaldo: Produto[] = [];
         for (const p of prods) {
@@ -77,7 +84,7 @@ export default function EntregaEPI() {
       }
     };
     load();
-  }, []);
+  }, [selectedEmpresa]);
 
   const selectedProduct = produtos.find(p => p.id === produtoId);
 
@@ -105,6 +112,7 @@ export default function EntregaEPI() {
         ip_origem: 'browser',
         user_agent: navigator.userAgent,
         versao_termo: '1.0',
+        empresa_id: selectedEmpresa?.id || null,
       }).select('id').single();
 
       if (entregaError) throw entregaError;
@@ -131,6 +139,7 @@ export default function EntregaEPI() {
         usuario_id: user.id,
         colaborador_id: colaboradorId,
         entrega_id: entrega.id,
+        empresa_id: selectedEmpresa?.id || null,
       });
       if (movError) throw movError;
 

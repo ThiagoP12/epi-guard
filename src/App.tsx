@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { EmpresaProvider } from "./contexts/EmpresaContext";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -13,6 +14,7 @@ import EntregaEPI from "./pages/EntregaEPI";
 import ControleEPC from "./pages/ControleEPC";
 import Relatorios from "./pages/Relatorios";
 import Configuracoes from "./pages/Configuracoes";
+import Revendas from "./pages/Revendas";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,18 +36,21 @@ function ProtectedRoutes() {
   if (!user) return <Navigate to="/login" replace />;
 
   return (
-    <Routes>
-      <Route element={<Layout />}>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/estoque" element={<Estoque />} />
-        <Route path="/colaboradores" element={<Colaboradores />} />
-        <Route path="/entrega-epi" element={<EntregaEPI />} />
-        <Route path="/controle-epc" element={<ControleEPC />} />
-        <Route path="/relatorios" element={<Relatorios />} />
-        <Route path="/configuracoes" element={<Configuracoes />} />
-      </Route>
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <EmpresaProvider>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/estoque" element={<Estoque />} />
+          <Route path="/colaboradores" element={<Colaboradores />} />
+          <Route path="/entrega-epi" element={<EntregaEPI />} />
+          <Route path="/controle-epc" element={<ControleEPC />} />
+          <Route path="/relatorios" element={<Relatorios />} />
+          <Route path="/configuracoes" element={<Configuracoes />} />
+          <Route path="/revendas" element={<Revendas />} />
+        </Route>
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </EmpresaProvider>
   );
 }
 
