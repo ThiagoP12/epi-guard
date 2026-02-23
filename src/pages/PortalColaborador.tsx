@@ -31,6 +31,14 @@ interface Solicitacao {
   aprovado_em?: string | null;
   assinatura_base64?: string | null;
   selfie_base64?: string | null;
+  ip_origem?: string | null;
+  user_agent?: string | null;
+  pdf_hash?: string | null;
+  geo_latitude?: number | null;
+  geo_longitude?: number | null;
+  assinado_em?: string | null;
+  cpf_colaborador?: string | null;
+  email_colaborador?: string | null;
   produto?: { nome: string; ca: string | null };
 }
 interface EntregaItem { nome_snapshot: string; ca_snapshot: string | null; quantidade: number; }
@@ -122,7 +130,7 @@ export default function PortalColaborador() {
   const loadSolicitacoes = async (colabId: string) => {
     const { data } = await supabase
       .from('solicitacoes_epi')
-      .select('id, produto_id, quantidade, motivo, observacao, status, created_at, motivo_rejeicao, aprovado_em, assinatura_base64, selfie_base64')
+      .select('id, produto_id, quantidade, motivo, observacao, status, created_at, motivo_rejeicao, aprovado_em, assinatura_base64, selfie_base64, ip_origem, user_agent, pdf_hash, geo_latitude, geo_longitude, assinado_em, cpf_colaborador, email_colaborador')
       .eq('colaborador_id', colabId)
       .order('created_at', { ascending: false });
 
@@ -145,6 +153,17 @@ export default function PortalColaborador() {
     }
   };
 
+  const captureGeolocation = (): Promise<{ lat: number; lng: number; accuracy: number } | null> => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) { resolve(null); return; }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+        () => resolve(null),
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    });
+  };
+
   const handleSubmit = async () => {
     if (!produtoId || !assinatura || !selfie || !declaracao || !colaborador) {
       toast({ title: 'Atenção', description: 'Preencha todos os campos obrigatórios.', variant: 'destructive' });
@@ -153,6 +172,7 @@ export default function PortalColaborador() {
 
     setSubmitting(true);
     try {
+      // Capture IP
       let ipOrigem = 'browser';
       try {
         const ipRes = await fetch('https://api.ipify.org?format=json');
@@ -160,8 +180,17 @@ export default function PortalColaborador() {
         ipOrigem = ipData.ip || 'browser';
       } catch { /* fallback */ }
 
+      // Capture geolocation
+      const geo = await captureGeolocation();
+
       const timestamp = new Date().toISOString();
-      const hashInput = `${assinatura}|${colaborador.id}|${produtoId}|${quantidade}|${motivo}|${timestamp}|${ipOrigem}`;
+
+      // Build hash with all audit data
+      const hashInput = [
+        assinatura, colaborador.id, colaborador.cpf || '', colaborador.email || '',
+        produtoId, quantidade, motivo, timestamp, ipOrigem, navigator.userAgent,
+        geo ? `${geo.lat},${geo.lng}` : 'no-geo'
+      ].join('|');
       const encoder = new TextEncoder();
       const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(hashInput));
       const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -180,6 +209,12 @@ export default function PortalColaborador() {
         ip_origem: ipOrigem,
         user_agent: navigator.userAgent,
         pdf_hash: pdfHash,
+        geo_latitude: geo?.lat ?? null,
+        geo_longitude: geo?.lng ?? null,
+        geo_accuracy: geo?.accuracy ?? null,
+        assinado_em: timestamp,
+        cpf_colaborador: colaborador.cpf || null,
+        email_colaborador: colaborador.email || null,
       } as any);
 
       if (error) throw error;
@@ -633,6 +668,14 @@ export default function PortalColaborador() {
             aprovado_em: comprovanteSolicitacao.aprovado_em,
             assinatura_base64: comprovanteSolicitacao.assinatura_base64,
             selfie_base64: comprovanteSolicitacao.selfie_base64,
+            ip_origem: comprovanteSolicitacao.ip_origem,
+            user_agent: comprovanteSolicitacao.user_agent,
+            pdf_hash: comprovanteSolicitacao.pdf_hash,
+            geo_latitude: comprovanteSolicitacao.geo_latitude,
+            geo_longitude: comprovanteSolicitacao.geo_longitude,
+            assinado_em: comprovanteSolicitacao.assinado_em,
+            cpf_colaborador: comprovanteSolicitacao.cpf_colaborador,
+            email_colaborador: comprovanteSolicitacao.email_colaborador,
           },
         } : null}
       />

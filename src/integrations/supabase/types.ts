@@ -218,6 +218,9 @@ export type Database = {
           email_enviado_em: string | null
           email_erro: string | null
           empresa_id: string | null
+          geo_accuracy: number | null
+          geo_latitude: number | null
+          geo_longitude: number | null
           id: string
           ip_origem: string | null
           motivo: Database["public"]["Enums"]["motivo_entrega"]
@@ -239,6 +242,9 @@ export type Database = {
           email_enviado_em?: string | null
           email_erro?: string | null
           empresa_id?: string | null
+          geo_accuracy?: number | null
+          geo_latitude?: number | null
+          geo_longitude?: number | null
           id?: string
           ip_origem?: string | null
           motivo: Database["public"]["Enums"]["motivo_entrega"]
@@ -260,6 +266,9 @@ export type Database = {
           email_enviado_em?: string | null
           email_erro?: string | null
           empresa_id?: string | null
+          geo_accuracy?: number | null
+          geo_latitude?: number | null
+          geo_longitude?: number | null
           id?: string
           ip_origem?: string | null
           motivo?: Database["public"]["Enums"]["motivo_entrega"]
@@ -590,11 +599,17 @@ export type Database = {
         Row: {
           aprovado_em: string | null
           aprovado_por: string | null
+          assinado_em: string | null
           assinatura_base64: string | null
           colaborador_id: string
+          cpf_colaborador: string | null
           created_at: string
           declaracao_aceita: boolean
+          email_colaborador: string | null
           empresa_id: string | null
+          geo_accuracy: number | null
+          geo_latitude: number | null
+          geo_longitude: number | null
           id: string
           ip_origem: string | null
           motivo: string
@@ -611,11 +626,17 @@ export type Database = {
         Insert: {
           aprovado_em?: string | null
           aprovado_por?: string | null
+          assinado_em?: string | null
           assinatura_base64?: string | null
           colaborador_id: string
+          cpf_colaborador?: string | null
           created_at?: string
           declaracao_aceita?: boolean
+          email_colaborador?: string | null
           empresa_id?: string | null
+          geo_accuracy?: number | null
+          geo_latitude?: number | null
+          geo_longitude?: number | null
           id?: string
           ip_origem?: string | null
           motivo?: string
@@ -632,11 +653,17 @@ export type Database = {
         Update: {
           aprovado_em?: string | null
           aprovado_por?: string | null
+          assinado_em?: string | null
           assinatura_base64?: string | null
           colaborador_id?: string
+          cpf_colaborador?: string | null
           created_at?: string
           declaracao_aceita?: boolean
+          email_colaborador?: string | null
           empresa_id?: string | null
+          geo_accuracy?: number | null
+          geo_latitude?: number | null
+          geo_longitude?: number | null
           id?: string
           ip_origem?: string | null
           motivo?: string
