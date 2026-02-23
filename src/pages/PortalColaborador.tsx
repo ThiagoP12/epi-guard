@@ -8,23 +8,27 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { useTheme } from '@/hooks/useTheme';
 import SignatureCanvas from '@/components/SignatureCanvas';
 import SelfieCapture from '@/components/SelfieCapture';
 import ComprovanteSolicitacao from '@/components/ComprovanteSolicitacao';
 import {
   LogOut, Package, History, ClipboardCheck, CheckCircle, Clock, XCircle,
   Loader2, FileText, User, Building2, Hash,
-  Camera, PenTool, Send, AlertTriangle, HardHat, Eye, Shield, ImagePlus
+  Camera, PenTool, Send, AlertTriangle, HardHat, Eye, Shield, ImagePlus,
+  Sun, Moon, Bell, UserCircle, Mail, Briefcase, Ruler, Footprints, Hand
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
+import { format, differenceInDays, parseISO } from 'date-fns';
 
 interface Colaborador {
   id: string; nome: string; matricula: string; cpf: string | null; email: string | null;
   setor: string; funcao: string; empresa_id: string | null;
   empresa?: { nome: string } | null;
+  tamanho_uniforme?: string | null; tamanho_bota?: string | null; tamanho_luva?: string | null;
+  data_admissao?: string | null; centro_custo?: string | null;
 }
-interface Produto { id: string; nome: string; ca: string | null; tipo: string; saldo: number; tamanho: string | null; marca: string | null; }
+interface Produto { id: string; nome: string; ca: string | null; tipo: string; saldo: number; tamanho: string | null; marca: string | null; data_validade: string | null; }
 interface Solicitacao {
   id: string; produto_id: string; quantidade: number; motivo: string; observacao: string | null;
   status: string; created_at: string; motivo_rejeicao: string | null;
@@ -50,7 +54,8 @@ interface Entrega {
 export default function PortalColaborador() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
-  const [activeSection, setActiveSection] = useState<'solicitar' | 'historico' | 'recebimentos'>('solicitar');
+  const [activeSection, setActiveSection] = useState<'solicitar' | 'historico' | 'recebimentos' | 'perfil'>('solicitar');
+  const { theme, toggleTheme } = useTheme();
   const [colaborador, setColaborador] = useState<Colaborador | null>(null);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [solicitacoes, setSolicitacoes] = useState<Solicitacao[]>([]);
@@ -78,7 +83,7 @@ export default function PortalColaborador() {
     const load = async () => {
       const { data: colab } = await supabase
         .from('colaboradores')
-        .select('id, nome, matricula, cpf, email, setor, funcao, empresa_id, empresas:empresa_id(nome)')
+        .select('id, nome, matricula, cpf, email, setor, funcao, empresa_id, tamanho_uniforme, tamanho_bota, tamanho_luva, data_admissao, centro_custo, empresas:empresa_id(nome)')
         .eq('user_id', user.id)
         .single();
 
@@ -94,7 +99,7 @@ export default function PortalColaborador() {
         for (const p of prods) {
           const { data: saldo } = await supabase.rpc('get_saldo_produto', { p_produto_id: p.id });
           if (typeof saldo === 'number' && saldo > 0) {
-            withSaldo.push({ id: p.id, nome: p.nome, ca: p.ca, tipo: p.tipo, saldo, tamanho: p.tamanho, marca: p.marca });
+            withSaldo.push({ id: p.id, nome: p.nome, ca: p.ca, tipo: p.tipo, saldo, tamanho: p.tamanho, marca: p.marca, data_validade: p.data_validade });
           }
         }
         setProdutos(withSaldo);
@@ -312,10 +317,18 @@ export default function PortalColaborador() {
     entregue: { icon: Package, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800', label: 'Entregue' },
   };
 
+  // Notifications: count recent status changes (approved/rejected/delivered in last 24h)
+  const recentNotifications = solicitacoes.filter(s => {
+    if (s.status === 'pendente') return false;
+    const created = new Date(s.aprovado_em || s.created_at);
+    return differenceInDays(new Date(), created) <= 7;
+  });
+
   const navItems = [
     { key: 'solicitar' as const, label: 'Nova Solicitação', shortLabel: 'Solicitar', icon: ClipboardCheck, badge: 0 },
     { key: 'historico' as const, label: 'Minhas Solicitações', shortLabel: 'Histórico', icon: History, badge: pendingCount },
     { key: 'recebimentos' as const, label: 'Recebimentos', shortLabel: 'Recebidos', icon: Package, badge: entregas.length + solicitacoes.filter(s => s.status === 'entregue').length },
+    { key: 'perfil' as const, label: 'Meu Perfil', shortLabel: 'Perfil', icon: UserCircle, badge: 0 },
   ];
 
   const initials = colaborador.nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
@@ -331,6 +344,27 @@ export default function PortalColaborador() {
                 <HardHat size={14} className="text-primary-foreground" />
               </div>
               <span className="text-xs sm:text-sm font-bold text-primary-foreground">Portal EPI</span>
+            </div>
+            <div className="flex items-center gap-1">
+              {/* Notifications bell */}
+              <button
+                onClick={() => setActiveSection('historico')}
+                className="relative p-2 rounded-lg text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors"
+                title="Notificações"
+              >
+                <Bell size={16} />
+                {recentNotifications.length > 0 && (
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-400 rounded-full animate-pulse" />
+                )}
+              </button>
+              {/* Dark mode toggle */}
+              <button
+                onClick={toggleTheme}
+                className="p-2 rounded-lg text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors"
+                title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+              >
+                {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+              </button>
             </div>
           </div>
         </div>
@@ -652,43 +686,102 @@ export default function PortalColaborador() {
             <div className="space-y-3 animate-in fade-in-0 duration-200">
               {/* Summary - combine entregas + solicitações entregues */}
               {(() => {
-                const totals: { nome: string; ca: string | null; total: number }[] = [];
+                const totals: { nome: string; ca: string | null; total: number; data_validade: string | null }[] = [];
                 // From entregas_epi
                 entregas.forEach(e => e.itens.forEach(item => {
                   const existing = totals.find(t => t.nome === item.nome_snapshot);
+                  const prod = produtos.find(p => p.nome === item.nome_snapshot);
                   if (existing) existing.total += item.quantidade;
-                  else totals.push({ nome: item.nome_snapshot, ca: item.ca_snapshot, total: item.quantidade });
+                  else totals.push({ nome: item.nome_snapshot, ca: item.ca_snapshot, total: item.quantidade, data_validade: prod?.data_validade || null });
                 }));
                 // From solicitações entregues
                 const solEntregues = solicitacoes.filter(s => s.status === 'entregue');
                 solEntregues.forEach(s => {
                   const nome = s.produto?.nome || 'Produto';
                   const ca = s.produto?.ca || null;
+                  const prod = produtos.find(p => p.id === s.produto_id);
                   const existing = totals.find(t => t.nome === nome);
                   if (existing) existing.total += s.quantidade;
-                  else totals.push({ nome, ca, total: s.quantidade });
+                  else totals.push({ nome, ca, total: s.quantidade, data_validade: prod?.data_validade || null });
                 });
                 if (totals.length === 0) return null;
+
+                // Check for validade alerts
+                const now = new Date();
+                const validadeAlerts = totals.filter(item => {
+                  if (!item.data_validade) return false;
+                  const days = differenceInDays(parseISO(item.data_validade), now);
+                  return days <= 60;
+                });
+
                 return (
-                  <div className="bg-card rounded-xl border shadow-sm overflow-hidden mb-2">
-                    <div className="px-5 py-3 border-b bg-primary/5">
-                      <h3 className="text-xs font-semibold text-foreground flex items-center gap-2">
-                        <ClipboardCheck size={13} className="text-primary" />
-                        EPIs em Uso
-                      </h3>
-                    </div>
-                    <div className="p-4 space-y-1.5">
-                      {totals.map(item => (
-                        <div key={item.nome} className="flex items-center justify-between bg-muted/40 rounded-lg px-3 py-2 text-xs">
-                          <div className="flex-1 min-w-0">
-                            <span className="font-medium text-foreground truncate block">{item.nome}</span>
-                            {item.ca && <span className="text-[10px] text-muted-foreground font-mono">CA: {item.ca}</span>}
-                          </div>
-                          <span className="font-bold text-primary ml-3">{item.total}×</span>
+                  <>
+                    {/* Validade alerts */}
+                    {validadeAlerts.length > 0 && (
+                      <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-4 mb-2">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertTriangle size={14} className="text-amber-600 dark:text-amber-400" />
+                          <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">Atenção: Validade próxima</span>
                         </div>
-                      ))}
+                        <div className="space-y-1.5">
+                          {validadeAlerts.map(item => {
+                            const days = differenceInDays(parseISO(item.data_validade!), now);
+                            const expired = days < 0;
+                            return (
+                              <div key={item.nome} className="flex items-center justify-between text-xs">
+                                <span className="font-medium text-foreground">{item.nome}</span>
+                                <span className={cn(
+                                  'font-bold px-2 py-0.5 rounded-full text-[10px]',
+                                  expired
+                                    ? 'bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-400'
+                                    : days <= 30
+                                      ? 'bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400'
+                                      : 'bg-yellow-100 dark:bg-yellow-950/50 text-yellow-700 dark:text-yellow-400'
+                                )}>
+                                  {expired ? `Vencido há ${Math.abs(days)}d` : `Vence em ${days}d`}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="bg-card rounded-xl border shadow-sm overflow-hidden mb-2">
+                      <div className="px-5 py-3 border-b bg-primary/5">
+                        <h3 className="text-xs font-semibold text-foreground flex items-center gap-2">
+                          <ClipboardCheck size={13} className="text-primary" />
+                          EPIs em Uso
+                        </h3>
+                      </div>
+                      <div className="p-4 space-y-1.5">
+                        {totals.map(item => {
+                          const days = item.data_validade ? differenceInDays(parseISO(item.data_validade), now) : null;
+                          return (
+                            <div key={item.nome} className="flex items-center justify-between bg-muted/40 rounded-lg px-3 py-2 text-xs">
+                              <div className="flex-1 min-w-0">
+                                <span className="font-medium text-foreground truncate block">{item.nome}</span>
+                                <div className="flex items-center gap-2">
+                                  {item.ca && <span className="text-[10px] text-muted-foreground font-mono">CA: {item.ca}</span>}
+                                  {item.data_validade && (
+                                    <span className={cn(
+                                      'text-[10px] font-mono',
+                                      days !== null && days < 0 ? 'text-red-600 dark:text-red-400 font-bold' :
+                                      days !== null && days <= 30 ? 'text-amber-600 dark:text-amber-400' :
+                                      'text-muted-foreground'
+                                    )}>
+                                      Val: {format(parseISO(item.data_validade), 'dd/MM/yy')}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <span className="font-bold text-primary ml-3">{item.total}×</span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
+                  </>
                 );
               })()}
 
@@ -765,6 +858,102 @@ export default function PortalColaborador() {
               )}
             </div>
           )}
+
+          {/* PERFIL */}
+          {activeSection === 'perfil' && (
+            <div className="space-y-4 animate-in fade-in-0 duration-200">
+              {/* Info pessoal */}
+              <section className="bg-card rounded-xl border shadow-sm overflow-hidden">
+                <div className="px-5 py-3 border-b bg-primary/5">
+                  <h3 className="text-xs font-semibold text-foreground flex items-center gap-2">
+                    <User size={13} className="text-primary" />
+                    Dados Pessoais
+                  </h3>
+                </div>
+                <div className="p-5 space-y-3">
+                  <ProfileRow icon={User} label="Nome completo" value={colaborador.nome} />
+                  <ProfileRow icon={Hash} label="Matrícula" value={colaborador.matricula} mono />
+                  {colaborador.cpf && <ProfileRow icon={FileText} label="CPF" value={colaborador.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')} mono />}
+                  {colaborador.email && <ProfileRow icon={Mail} label="E-mail" value={colaborador.email} />}
+                </div>
+              </section>
+
+              {/* Info profissional */}
+              <section className="bg-card rounded-xl border shadow-sm overflow-hidden">
+                <div className="px-5 py-3 border-b bg-primary/5">
+                  <h3 className="text-xs font-semibold text-foreground flex items-center gap-2">
+                    <Briefcase size={13} className="text-primary" />
+                    Dados Profissionais
+                  </h3>
+                </div>
+                <div className="p-5 space-y-3">
+                  <ProfileRow icon={Building2} label="Empresa" value={colaborador.empresa?.nome || '—'} />
+                  <ProfileRow icon={Briefcase} label="Função" value={colaborador.funcao} />
+                  <ProfileRow icon={ClipboardCheck} label="Setor" value={colaborador.setor} />
+                  {colaborador.centro_custo && <ProfileRow icon={Hash} label="Centro de custo" value={colaborador.centro_custo} />}
+                  {colaborador.data_admissao && <ProfileRow icon={Clock} label="Admissão" value={format(parseISO(colaborador.data_admissao), 'dd/MM/yyyy')} />}
+                </div>
+              </section>
+
+              {/* Tamanhos */}
+              <section className="bg-card rounded-xl border shadow-sm overflow-hidden">
+                <div className="px-5 py-3 border-b bg-primary/5">
+                  <h3 className="text-xs font-semibold text-foreground flex items-center gap-2">
+                    <Ruler size={13} className="text-primary" />
+                    Tamanhos
+                  </h3>
+                </div>
+                <div className="p-5 grid grid-cols-3 gap-3">
+                  <SizeCard icon={User} label="Uniforme" value={colaborador.tamanho_uniforme} />
+                  <SizeCard icon={Footprints} label="Calçado" value={colaborador.tamanho_bota} />
+                  <SizeCard icon={Hand} label="Luva" value={colaborador.tamanho_luva} />
+                </div>
+              </section>
+
+              {/* Notificações recentes */}
+              {recentNotifications.length > 0 && (
+                <section className="bg-card rounded-xl border shadow-sm overflow-hidden">
+                  <div className="px-5 py-3 border-b bg-primary/5">
+                    <h3 className="text-xs font-semibold text-foreground flex items-center gap-2">
+                      <Bell size={13} className="text-primary" />
+                      Atualizações Recentes
+                    </h3>
+                  </div>
+                  <div className="p-4 space-y-2">
+                    {recentNotifications.slice(0, 5).map(s => {
+                      const cfg = statusConfig[s.status as keyof typeof statusConfig] || statusConfig.pendente;
+                      const StatusIcon = cfg.icon;
+                      return (
+                        <div key={s.id} className={cn('flex items-center gap-3 px-3 py-2.5 rounded-lg border text-xs', cfg.bg)}>
+                          <StatusIcon size={14} className={cfg.color} />
+                          <div className="flex-1 min-w-0">
+                            <span className="font-medium text-foreground truncate block">{s.produto?.nome || 'Produto'}</span>
+                            <span className="text-[10px] text-muted-foreground">{cfg.label} • {format(new Date(s.aprovado_em || s.created_at), 'dd/MM HH:mm')}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {/* Tema */}
+              <section className="bg-card rounded-xl border shadow-sm p-5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {theme === 'dark' ? <Moon size={16} className="text-primary" /> : <Sun size={16} className="text-primary" />}
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Tema {theme === 'dark' ? 'Escuro' : 'Claro'}</p>
+                      <p className="text-[11px] text-muted-foreground">Alterne a aparência do portal</p>
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={toggleTheme}>
+                    {theme === 'dark' ? <><Sun size={13} /> Claro</> : <><Moon size={13} /> Escuro</>}
+                  </Button>
+                </div>
+              </section>
+            </div>
+          )}
         </div>
       </main>
 
@@ -812,13 +1001,6 @@ export default function PortalColaborador() {
               <span>{item.shortLabel}</span>
             </button>
           ))}
-          <button
-            onClick={signOut}
-            className="flex flex-col items-center gap-0.5 py-2 px-4 text-[10px] font-medium text-muted-foreground"
-          >
-            <LogOut size={18} />
-            <span>Sair</span>
-          </button>
         </div>
       </nav>
 
@@ -897,4 +1079,24 @@ function formatCpf(cpf: string): string {
   const digits = cpf.replace(/\D/g, '');
   if (digits.length !== 11) return cpf;
   return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+}
+
+function ProfileRow({ icon: Icon, label, value, mono }: { icon: any; label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-center gap-3 py-2 border-b border-border/50 last:border-0">
+      <Icon size={14} className="text-muted-foreground shrink-0" />
+      <span className="text-xs text-muted-foreground w-28 shrink-0">{label}</span>
+      <span className={cn('text-sm font-medium text-foreground truncate', mono && 'font-mono text-xs')}>{value}</span>
+    </div>
+  );
+}
+
+function SizeCard({ icon: Icon, label, value }: { icon: any; label: string; value?: string | null }) {
+  return (
+    <div className="bg-muted/40 rounded-xl p-3 text-center border">
+      <Icon size={18} className="mx-auto text-primary mb-1.5" />
+      <p className="text-lg font-bold text-foreground">{value || '—'}</p>
+      <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
+    </div>
+  );
 }
