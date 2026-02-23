@@ -1,10 +1,10 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, ClipboardCheck, Users, AlertTriangle, TrendingUp, Clock, ArrowRight, Calendar, Shield, Award, Medal, FileDown, Loader2 } from 'lucide-react';
+import { Package, ClipboardCheck, Users, AlertTriangle, TrendingUp, Clock, ArrowRight, Calendar, Shield, Award, Medal, FileDown, Loader2, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { StatusBadge } from '@/components/StatusBadge';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts';
 import { useEmpresa } from '@/contexts/EmpresaContext';
 
 interface RecentActivity {
@@ -31,6 +31,19 @@ interface RankingItem {
   quantidade: number;
 }
 
+interface CentroCustoData {
+  nome: string;
+  quantidade: number;
+}
+
+const CC_COLORS = [
+  'hsl(var(--primary))',
+  'hsl(var(--status-ok))',
+  'hsl(var(--status-warning))',
+  'hsl(210 70% 55%)',
+  'hsl(280 60% 55%)',
+];
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { selectedEmpresa } = useEmpresa();
@@ -41,6 +54,7 @@ export default function Dashboard() {
   const [topColaboradores, setTopColaboradores] = useState<RankingItem[]>([]);
   const [topEPIs, setTopEPIs] = useState<RankingItem[]>([]);
   const [topEPCs, setTopEPCs] = useState<RankingItem[]>([]);
+  const [centroCustoData, setCentroCustoData] = useState<CentroCustoData[]>([]);
   const [loading, setLoading] = useState(true);
   const [rankingDays, setRankingDays] = useState(30);
   const [chartDays, setChartDays] = useState(7);
@@ -299,6 +313,23 @@ export default function Dashboard() {
       });
       acts.sort((a, b) => b.time.localeCompare(a.time));
       setActivities(acts.slice(0, 8));
+
+      // --- Centro de Custo report ---
+      let ccQuery = supabase.from('colaboradores').select('centro_custo').eq('ativo', true);
+      if (selectedEmpresa) ccQuery = ccQuery.eq('empresa_id', selectedEmpresa.id);
+      const { data: ccData } = await ccQuery;
+      if (ccData) {
+        const ccMap = new Map<string, number>();
+        for (const c of ccData as any[]) {
+          const cc = c.centro_custo || 'Não definido';
+          ccMap.set(cc, (ccMap.get(cc) || 0) + 1);
+        }
+        setCentroCustoData(
+          Array.from(ccMap.entries())
+            .sort((a, b) => b[1] - a[1])
+            .map(([nome, quantidade]) => ({ nome, quantidade }))
+        );
+      }
 
       setLoading(false);
     };
@@ -569,6 +600,65 @@ export default function Dashboard() {
           accentColor="bg-status-warning"
         />
         </div>
+      </div>
+
+      {/* Centro de Custo Report */}
+      <div className="bg-card rounded-lg border p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="p-1.5 rounded-md bg-primary">
+            <Wallet size={16} className="text-primary-foreground" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Colaboradores por Centro de Custo</h2>
+            <p className="text-xs text-muted-foreground">Distribuição dos colaboradores ativos</p>
+          </div>
+        </div>
+        {loading ? (
+          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">Carregando...</div>
+        ) : centroCustoData.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-8">Nenhum colaborador com centro de custo definido.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={centroCustoData}
+                    dataKey="quantidade"
+                    nameKey="nome"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    label={({ nome, quantidade }) => `${quantidade}`}
+                    labelLine={false}
+                  >
+                    {centroCustoData.map((_, idx) => (
+                      <Cell key={idx} fill={CC_COLORS[idx % CC_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
+                    formatter={(value: number, name: string) => [value, name]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="space-y-2">
+              {centroCustoData.map((cc, idx) => {
+                const total = centroCustoData.reduce((sum, c) => sum + c.quantidade, 0);
+                const pct = total > 0 ? ((cc.quantidade / total) * 100).toFixed(1) : '0';
+                return (
+                  <div key={cc.nome} className="flex items-center gap-3 py-1.5 px-2 rounded-md hover:bg-muted/40 transition-colors">
+                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: CC_COLORS[idx % CC_COLORS.length] }} />
+                    <span className="text-xs font-medium text-foreground flex-1 truncate">{cc.nome}</span>
+                    <span className="text-xs font-bold tabular-nums text-foreground">{cc.quantidade}</span>
+                    <span className="text-[10px] text-muted-foreground w-10 text-right">{pct}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Alerts */}

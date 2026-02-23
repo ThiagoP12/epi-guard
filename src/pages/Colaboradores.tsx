@@ -28,7 +28,16 @@ interface Colaborador {
   tamanho_uniforme: string | null;
   tamanho_bota: string | null;
   tamanho_luva: string | null;
+  centro_custo: string | null;
 }
+
+const CENTROS_CUSTO = [
+  { codigo: '101', nome: 'Puxada' },
+  { codigo: '201', nome: 'Armazém' },
+  { codigo: '301', nome: 'Administrativo' },
+  { codigo: '401', nome: 'Vendas' },
+  { codigo: '501', nome: 'Entrega' },
+];
 
 interface EntregaHistorico {
   id: string;
@@ -44,6 +53,7 @@ const emptyForm = {
   nome: '', matricula: '', cpf: '', setor: '', funcao: '', email: '',
   data_admissao: new Date().toISOString().slice(0, 10),
   tamanho_uniforme: '', tamanho_bota: '', tamanho_luva: '',
+  centro_custo: '',
 };
 
 export default function Colaboradores() {
@@ -182,6 +192,7 @@ export default function Colaboradores() {
       tamanho_uniforme: c.tamanho_uniforme || '',
       tamanho_bota: c.tamanho_bota || '',
       tamanho_luva: c.tamanho_luva || '',
+      centro_custo: c.centro_custo || '',
     });
     setFormOpen(true);
   };
@@ -208,6 +219,7 @@ export default function Colaboradores() {
       tamanho_uniforme: form.tamanho_uniforme || null,
       tamanho_bota: form.tamanho_bota || null,
       tamanho_luva: form.tamanho_luva || null,
+      centro_custo: form.centro_custo || null,
       empresa_id: selectedEmpresa?.id || null,
     };
 
@@ -643,9 +655,22 @@ export default function Colaboradores() {
                 <Input value={form.funcao} onChange={(e) => setForm({ ...form, funcao: e.target.value })} className="mt-1 h-9" placeholder="Operador" />
               </div>
             </div>
-            <div>
-              <Label className="text-xs">E-mail</Label>
-              <Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="mt-1 h-9" placeholder="email@empresa.com" />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">E-mail</Label>
+                <Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="mt-1 h-9" placeholder="email@empresa.com" />
+              </div>
+              <div>
+                <Label className="text-xs">Centro de Custo</Label>
+                <Select value={form.centro_custo} onValueChange={(v) => setForm({ ...form, centro_custo: v })}>
+                  <SelectTrigger className="mt-1 h-9"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
+                  <SelectContent>
+                    {CENTROS_CUSTO.map(cc => (
+                      <SelectItem key={cc.codigo} value={`${cc.codigo} - ${cc.nome}`}>{cc.codigo} - {cc.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
