@@ -73,6 +73,8 @@ export default function PortalColaborador() {
 
   useEffect(() => {
     if (!user) return;
+    let colabId: string | null = null;
+
     const load = async () => {
       const { data: colab } = await supabase
         .from('colaboradores')
@@ -83,6 +85,7 @@ export default function PortalColaborador() {
       if (!colab) { setLoading(false); return; }
       const colabData = { ...colab, empresa: (colab as any).empresas } as Colaborador;
       setColaborador(colabData);
+      colabId = colabData.id;
 
       let prodQuery = supabase.from('produtos').select('*').eq('ativo', true).order('nome');
       const { data: prods } = await prodQuery;
@@ -111,6 +114,20 @@ export default function PortalColaborador() {
       setLoading(false);
     };
     load();
+
+    // Realtime: auto-refresh when solicitacoes change
+    const channel = supabase
+      .channel('portal-solicitacoes')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'solicitacoes_epi' },
+        () => {
+          if (colabId) loadSolicitacoes(colabId);
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   const loadEntregas = async (colabId: string) => {
