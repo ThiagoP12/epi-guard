@@ -402,26 +402,6 @@ export default function PortalColaborador() {
       </div>
 
       <main className="max-w-4xl mx-auto px-3 sm:px-6 py-3 sm:py-4 flex-1 w-full">
-        {/* Stats row */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4 sm:mb-5">
-          <StatCard
-            label="Solicitações"
-            value={solicitacoes.filter(s => s.status !== 'entregue').length}
-            detail={pendingCount > 0 ? `${pendingCount} pend.` : 'Nenhuma'}
-            accent={pendingCount > 0}
-          />
-          <StatCard
-            label="Recebidos"
-            value={entregas.length}
-            detail={entregas.length > 0 ? `Últ: ${format(new Date(entregas[0].data_hora), 'dd/MM')}` : 'Nenhum'}
-          />
-          <StatCard
-            label="Estoque"
-            value={produtos.length}
-            detail="Disponíveis"
-          />
-        </div>
-
         {/* Tab Navigation - desktop only */}
         <div className="hidden sm:flex bg-card rounded-xl border shadow-sm mb-5 p-1 gap-1">
           {navItems.map(item => (
