@@ -28,6 +28,27 @@ export function useEmpresa() {
   return ctx;
 }
 
+const EMPRESA_ORDER = [
+  'Revalle Juazeiro',
+  'Revalle Bonfim',
+  'Revalle Petrolina',
+  'Revalle Ribeira do Pombal',
+  'Revalle Paulo Afonso',
+  'Revalle Alagoinhas',
+  'Revalle Serrinha',
+];
+
+function sortEmpresas(list: Empresa[]): Empresa[] {
+  return [...list].sort((a, b) => {
+    const ia = EMPRESA_ORDER.indexOf(a.nome);
+    const ib = EMPRESA_ORDER.indexOf(b.nome);
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;
+    if (ib !== -1) return 1;
+    return a.nome.localeCompare(b.nome);
+  });
+}
+
 export function EmpresaProvider({ children }: { children: ReactNode }) {
   const { user, role } = useAuth();
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -52,7 +73,7 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
           .select('*')
           .eq('ativo', true)
           .order('nome');
-        if (data) setEmpresas(data as Empresa[]);
+        if (data) setEmpresas(sortEmpresas(data as Empresa[]));
       } else {
         // Other roles: only linked empresas
         const { data: links } = await supabase
@@ -68,7 +89,7 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
             .in('id', ids)
             .eq('ativo', true)
             .order('nome');
-          if (data) setEmpresas(data as Empresa[]);
+          if (data) setEmpresas(sortEmpresas(data as Empresa[]));
         }
       }
 
@@ -78,20 +99,21 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
     load();
   }, [user, role]);
 
-  // Auto-select from localStorage or first empresa
+  // Auto-select from localStorage (null = Todas)
   useEffect(() => {
-    if (empresas.length > 0 && !selectedEmpresa) {
+    if (empresas.length > 0 && selectedEmpresa === null) {
       const saved = localStorage.getItem('selected_empresa_id');
-      const found = saved ? empresas.find(e => e.id === saved) : null;
-      setSelectedEmpresa(found || empresas[0]);
+      if (saved && saved !== 'todas') {
+        const found = empresas.find(e => e.id === saved);
+        if (found) setSelectedEmpresa(found);
+      }
+      // If saved is 'todas' or not found, keep null (Todas)
     }
-  }, [empresas, selectedEmpresa]);
+  }, [empresas]);
 
   // Persist selection
   useEffect(() => {
-    if (selectedEmpresa) {
-      localStorage.setItem('selected_empresa_id', selectedEmpresa.id);
-    }
+    localStorage.setItem('selected_empresa_id', selectedEmpresa ? selectedEmpresa.id : 'todas');
   }, [selectedEmpresa]);
 
   return (
