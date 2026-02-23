@@ -327,9 +327,17 @@ export default function Solicitacoes() {
 
                   {/* Right side: status + date */}
                   <div className="flex flex-col items-end gap-1.5 shrink-0">
-                    <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold", cfg.bg, cfg.color)}>
-                      <Icon size={12} />
-                      {cfg.label}
+                    <div className="flex items-center gap-1">
+                      {s.status === 'entregue' && (
+                        <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold", statusConfig.aprovado.bg, statusConfig.aprovado.color)}>
+                          <CheckCircle size={12} />
+                          Aprovado
+                        </div>
+                      )}
+                      <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold", cfg.bg, cfg.color)}>
+                        <Icon size={12} />
+                        {cfg.label}
+                      </div>
                     </div>
                     <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                       <Calendar size={10} />
@@ -358,13 +366,20 @@ export default function Solicitacoes() {
           </DialogHeader>
           {selected && (
             <div className="space-y-5 mt-1">
-              {/* Status badge */}
+              {/* Status badges */}
               {(() => {
                 const cfg = statusConfig[selected.status] || statusConfig.pendente;
                 const Icon = cfg.icon;
                 return (
-                  <div className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold", cfg.bg, cfg.color)}>
-                    <Icon size={14} /> {cfg.label}
+                  <div className="flex items-center gap-2">
+                    {selected.status === 'entregue' && (
+                      <div className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold", statusConfig.aprovado.bg, statusConfig.aprovado.color)}>
+                        <CheckCircle size={14} /> Aprovado
+                      </div>
+                    )}
+                    <div className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold", cfg.bg, cfg.color)}>
+                      <Icon size={14} /> {cfg.label}
+                    </div>
                   </div>
                 );
               })()}
