@@ -17,6 +17,7 @@ export type Database = {
       colaboradores: {
         Row: {
           ativo: boolean
+          centro_custo: string | null
           cpf: string | null
           created_at: string
           data_admissao: string
@@ -35,6 +36,7 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean
+          centro_custo?: string | null
           cpf?: string | null
           created_at?: string
           data_admissao?: string
@@ -53,6 +55,7 @@ export type Database = {
         }
         Update: {
           ativo?: boolean
+          centro_custo?: string | null
           cpf?: string | null
           created_at?: string
           data_admissao?: string
