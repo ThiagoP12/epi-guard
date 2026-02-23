@@ -486,28 +486,30 @@ export default function Colaboradores() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         {[
-          { label: 'Total Ativos', value: stats.total, icon: Users, color: 'text-primary', bg: 'bg-primary/10', onClick: () => setStatusFilter('ativos') },
-          { label: 'Setores', value: stats.setores, icon: Building2, color: 'text-muted-foreground', bg: 'bg-muted', onClick: undefined },
-          { label: 'Inativos', value: stats.inativos, icon: UserX, color: 'text-[hsl(var(--status-warning))]', bg: 'bg-[hsl(var(--status-warning-bg))]', onClick: () => setStatusFilter('inativos') },
-          { label: 'Filtrados', value: filtered.length, icon: Filter, color: 'text-muted-foreground', bg: 'bg-muted', onClick: undefined },
+          { label: 'Total Ativos', value: stats.total, icon: Users, color: 'text-primary', bg: 'bg-primary/10', borderColor: 'border-l-primary', onClick: () => setStatusFilter('ativos') },
+          { label: 'Setores', value: stats.setores, icon: Building2, color: 'text-muted-foreground', bg: 'bg-muted', borderColor: 'border-l-muted-foreground', onClick: undefined },
+          { label: 'Inativos', value: stats.inativos, icon: UserX, color: 'text-[hsl(var(--status-warning))]', bg: 'bg-[hsl(var(--status-warning-bg))]', borderColor: 'border-l-[hsl(var(--status-warning))]', onClick: () => setStatusFilter('inativos') },
+          { label: 'Filtrados', value: filtered.length, icon: Filter, color: 'text-muted-foreground', bg: 'bg-muted', borderColor: 'border-l-muted-foreground', onClick: undefined },
         ].map(kpi => (
           <button
             key={kpi.label}
             onClick={kpi.onClick}
             className={cn(
-              "relative rounded-xl border p-3.5 text-left transition-all duration-200 bg-card",
+              "relative rounded-xl border border-l-[3px] p-4 text-left transition-all duration-200 bg-card",
+              kpi.borderColor,
               kpi.onClick && "hover:bg-accent/50 hover:border-border cursor-pointer"
             )}
           >
             <div className="flex items-center justify-between mb-2">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{kpi.label}</span>
               <div className={cn("p-1.5 rounded-lg", kpi.bg)}>
-                <kpi.icon size={13} className={kpi.color} />
+                <kpi.icon size={14} className={kpi.color} />
               </div>
             </div>
-            <p className="text-2xl font-bold tracking-tight text-foreground">{loading ? '—' : kpi.value}</p>
+            <p className={cn("text-2xl font-bold tracking-tight", kpi.color)}>{loading ? '—' : kpi.value}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">registros</p>
           </button>
         ))}
       </div>
@@ -583,10 +585,10 @@ export default function Colaboradores() {
                 )}
                 onClick={() => { setDetailColab(c); setDetailOpen(true); loadDetailEntregas(c.id); }}
               >
-                <div className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4">
+                <div className="flex items-center gap-4 p-4">
                   {/* Avatar */}
                   <div className={cn(
-                    "w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
+                    "w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold shrink-0",
                     c.ativo ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
                   )}>
                     {initials}
@@ -600,7 +602,7 @@ export default function Colaboradores() {
                         <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-[hsl(var(--status-warning-bg))] text-[hsl(var(--status-warning))]">Inativo</span>
                       )}
                     </div>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-[11px] text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1.5 text-[11px] text-muted-foreground">
                       <span className="font-mono">{c.matricula}</span>
                       <span className="flex items-center gap-1">
                         <Building2 size={10} />
