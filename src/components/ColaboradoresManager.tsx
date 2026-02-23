@@ -74,10 +74,13 @@ export default function ColaboradoresManager() {
   useEffect(() => { load(); }, [selectedEmpresa]);
 
   const openCreateAccount = (c: Colaborador) => {
-    setAccountColab(c);
-    // Auto-fill: CPF as email identifier, default password
     const cpfDigits = c.cpf?.replace(/\D/g, '') || '';
-    setAccountEmail(cpfDigits ? `${cpfDigits}@portal.local` : c.email || '');
+    if (!cpfDigits || cpfDigits.length !== 11) {
+      toast({ title: 'CPF obrigatório', description: 'Cadastre o CPF deste colaborador antes de criar o acesso ao portal.', variant: 'destructive' });
+      return;
+    }
+    setAccountColab(c);
+    setAccountEmail(`${cpfDigits}@portal.local`);
     setAccountPassword('rev123');
     setShowPassword(false);
     setAccountOpen(true);
