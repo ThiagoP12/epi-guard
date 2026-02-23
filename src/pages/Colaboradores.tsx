@@ -63,8 +63,8 @@ export default function Colaboradores() {
   const [funcaoFilter, setFuncaoFilter] = useState('todos');
   const [statusFilter, setStatusFilter] = useState('ativos');
 
-  // Setores from DB
   const [setoresCadastrados, setSetoresCadastrados] = useState<{ id: string; nome: string }[]>([]);
+  const [funcoesCadastradas, setFuncoesCadastradas] = useState<{ id: string; nome: string }[]>([]);
 
   // CRUD modal
   const [formOpen, setFormOpen] = useState(false);
@@ -140,7 +140,7 @@ export default function Colaboradores() {
 
   useEffect(() => { load(); }, [selectedEmpresa]);
 
-  // Load setores from DB
+  // Load setores and funcoes from DB
   useEffect(() => {
     const loadSetores = async () => {
       let q = supabase.from('setores').select('id, nome').eq('ativo', true).order('nome');
@@ -148,7 +148,14 @@ export default function Colaboradores() {
       const { data } = await q;
       if (data) setSetoresCadastrados(data);
     };
+    const loadFuncoes = async () => {
+      let q = supabase.from('funcoes').select('id, nome').eq('ativo', true).order('nome');
+      if (selectedEmpresa) q = q.eq('empresa_id', selectedEmpresa.id);
+      const { data } = await q;
+      if (data) setFuncoesCadastradas(data);
+    };
     loadSetores();
+    loadFuncoes();
   }, [selectedEmpresa]);
 
   // Unique setores and funções for filters
@@ -652,7 +659,14 @@ export default function Colaboradores() {
               </div>
               <div>
                 <Label className="text-xs">Função *</Label>
-                <Input value={form.funcao} onChange={(e) => setForm({ ...form, funcao: e.target.value })} className="mt-1 h-9" placeholder="Operador" />
+                <Select value={form.funcao} onValueChange={(v) => setForm({ ...form, funcao: v })}>
+                  <SelectTrigger className="mt-1 h-9"><SelectValue placeholder="Selecionar função..." /></SelectTrigger>
+                  <SelectContent>
+                    {funcoesCadastradas.map(f => (
+                      <SelectItem key={f.id} value={f.nome}>{f.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
