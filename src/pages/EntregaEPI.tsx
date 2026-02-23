@@ -10,6 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import SignatureCanvas from '@/components/SignatureCanvas';
+import SelfieCapture from '@/components/SelfieCapture';
 import { useEmpresa } from '@/contexts/EmpresaContext';
 import { cn } from '@/lib/utils';
 
@@ -49,6 +50,7 @@ export default function EntregaEPI() {
 
   // Step 3 - Assinatura
   const [assinatura, setAssinatura] = useState<string | null>(null);
+  const [selfie, setSelfie] = useState<string | null>(null);
   const [declaracao, setDeclaracao] = useState(false);
 
   // Submit
@@ -150,8 +152,8 @@ export default function EntregaEPI() {
   };
 
   const handleSubmit = async () => {
-    if (!colaboradorId || cart.length === 0 || !motivo || !assinatura || !declaracao || !user) {
-      toast({ title: 'Atenção', description: 'Preencha todos os campos, assine e aceite a declaração.', variant: 'destructive' });
+    if (!colaboradorId || cart.length === 0 || !motivo || !assinatura || !selfie || !declaracao || !user) {
+      toast({ title: 'Atenção', description: 'Preencha todos os campos, tire a selfie, assine e aceite a declaração.', variant: 'destructive' });
       return;
     }
     setSubmitting(true);
@@ -176,13 +178,14 @@ export default function EntregaEPI() {
         motivo: motivo as any,
         observacao: observacao || null,
         assinatura_base64: assinatura,
+        selfie_base64: selfie,
         declaracao_aceita: true,
         ip_origem: ipOrigem,
         user_agent: navigator.userAgent,
         versao_termo: '2.0',
         empresa_id: selectedEmpresa?.id || null,
         pdf_hash: pdfHash,
-      }).select('id').single();
+      } as any).select('id').single();
 
       if (entregaError) throw entregaError;
 
@@ -247,6 +250,7 @@ export default function EntregaEPI() {
     setMotivo('');
     setObservacao('');
     setAssinatura(null);
+    setSelfie(null);
     setDeclaracao(false);
     setLastEntregaId(null);
   };
@@ -552,6 +556,11 @@ export default function EntregaEPI() {
               </div>
             )}
 
+            {/* Selfie */}
+            <div>
+              <SelfieCapture onCaptureChange={setSelfie} label="Selfie de Verificação do Colaborador *" />
+            </div>
+
             {/* Assinatura */}
             <div>
               <Label className="text-xs font-medium mb-2 block">Assinatura Digital do Colaborador *</Label>
@@ -576,7 +585,7 @@ export default function EntregaEPI() {
               <Button variant="outline" onClick={() => setStep(2)} className="gap-1.5">
                 <ChevronLeft size={15} /> Voltar
               </Button>
-              <Button onClick={handleSubmit} disabled={submitting || !assinatura || !declaracao} className="gap-1.5">
+              <Button onClick={handleSubmit} disabled={submitting || !assinatura || !selfie || !declaracao} className="gap-1.5">
                 {submitting ? (
                   <><Loader2 size={15} className="animate-spin" /> Registrando...</>
                 ) : (
