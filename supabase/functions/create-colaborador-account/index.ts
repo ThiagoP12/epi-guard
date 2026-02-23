@@ -28,14 +28,18 @@ serve(async (req) => {
 
     // Check caller is admin
     const adminClient = createClient(SUPABASE_URL, SERVICE_KEY);
-    const { data: roles } = await adminClient
+    const { data: roles, error: rolesError } = await adminClient
       .from('user_roles')
       .select('role')
       .eq('user_id', caller.id);
 
-    const userRoles = (roles || []).map(r => r.role);
-    if (!userRoles.includes('admin') && !userRoles.includes('super_admin')) {
-      throw new Error('Apenas administradores podem criar contas de colaboradores');
+    console.log('Caller ID:', caller.id, 'Roles:', JSON.stringify(roles), 'Error:', rolesError);
+
+    const userRoles = (roles || []).map((r: any) => r.role);
+    const isAdmin = userRoles.includes('admin') || userRoles.includes('super_admin');
+    
+    if (!isAdmin) {
+      throw new Error(`Apenas administradores podem criar contas. Roles encontradas: ${JSON.stringify(userRoles)}`);
     }
 
     const { colaboradorId, email, password } = await req.json();
