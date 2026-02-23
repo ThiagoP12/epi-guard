@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Save, Upload, X, ImageIcon, Camera, User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import SetoresManager from '@/components/SetoresManager';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -241,6 +242,9 @@ export default function Configuracoes() {
             </div>
           </div>
         </div>
+
+        {/* Setores */}
+        <SetoresManager />
 
         <div className="bg-card rounded-lg border p-5">
           <h2 className="text-sm font-semibold mb-4">Dados da Empresa (Termo NR-06)</h2>
