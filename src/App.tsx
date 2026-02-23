@@ -146,7 +146,11 @@ function ProtectedRoutes() {
 
   // Colaborador role goes to portal
   if (role === 'colaborador') {
-    return <PortalColaborador />;
+    return (
+      <Routes>
+        <Route path="*" element={<PortalColaborador />} />
+      </Routes>
+    );
   }
 
   return (
