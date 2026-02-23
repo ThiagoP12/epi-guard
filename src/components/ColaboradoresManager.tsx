@@ -155,9 +155,9 @@ export default function ColaboradoresManager() {
       {/* KPI Cards */}
       <div className="grid grid-cols-3 gap-3">
         {([
-          { key: 'todos' as FilterStatus, label: 'Total', value: colaboradores.length, icon: Users, color: 'text-foreground', bg: 'bg-muted' },
-          { key: 'com_acesso' as FilterStatus, label: 'Com acesso', value: withAccount, icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
-          { key: 'sem_acesso' as FilterStatus, label: 'Sem acesso', value: withoutAccount, icon: XCircle, color: 'text-amber-600', bg: 'bg-amber-500/10' },
+          { key: 'todos' as FilterStatus, label: 'Total', value: colaboradores.length, icon: Users, color: 'text-foreground', bg: 'bg-muted', borderColor: 'border-l-foreground' },
+          { key: 'com_acesso' as FilterStatus, label: 'Com acesso', value: withAccount, icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-500/10', borderColor: 'border-l-emerald-500' },
+          { key: 'sem_acesso' as FilterStatus, label: 'Sem acesso', value: withoutAccount, icon: XCircle, color: 'text-amber-600', bg: 'bg-amber-500/10', borderColor: 'border-l-amber-500' },
         ]).map(kpi => {
           const Icon = kpi.icon;
           return (
@@ -165,20 +165,21 @@ export default function ColaboradoresManager() {
               key={kpi.key}
               onClick={() => setFilterStatus(filterStatus === kpi.key ? 'todos' : kpi.key)}
               className={cn(
-                "bg-card rounded-lg border p-3 text-left transition-all hover:shadow-sm",
-                filterStatus === kpi.key && kpi.key !== 'todos' && "border-primary ring-1 ring-primary/20"
+                "bg-card rounded-xl border border-l-[3px] p-4 text-left transition-all hover:shadow-sm",
+                kpi.borderColor,
+                filterStatus === kpi.key && kpi.key !== 'todos' && "ring-1 ring-primary/20"
               )}
             >
-              <div className="flex items-center justify-between mb-1">
-                <p className={cn("text-[10px] font-semibold uppercase tracking-wider", kpi.color)}>{kpi.label}</p>
-                <div className={cn("p-1 rounded-md", kpi.bg)}>
-                  <Icon size={12} className={kpi.color} />
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{kpi.label}</p>
+                <div className={cn("p-1.5 rounded-lg", kpi.bg)}>
+                  <Icon size={14} className={kpi.color} />
                 </div>
               </div>
-              <p className={cn("text-xl font-bold mt-0.5", kpi.color)}>{loading ? '—' : kpi.value}</p>
-              {kpi.key === 'sem_acesso' && kpi.value > 0 && (
-                <p className="text-[9px] text-muted-foreground mt-1">Clique para filtrar</p>
-              )}
+              <p className={cn("text-2xl font-bold tracking-tight", kpi.color)}>{loading ? '—' : kpi.value}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {kpi.key === 'sem_acesso' && kpi.value > 0 ? 'Clique para filtrar' : 'colaboradores'}
+              </p>
             </button>
           );
         })}
@@ -202,9 +203,9 @@ export default function ColaboradoresManager() {
 
       {/* List */}
       {loading ? (
-        <div className="flex justify-center py-10"><Loader2 size={22} className="animate-spin text-muted-foreground" /></div>
+        <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-muted-foreground" /></div>
       ) : filtered.length === 0 ? (
-        <div className="bg-card rounded-xl border p-10 text-center">
+        <div className="bg-card rounded-xl border shadow-sm p-14 text-center">
           <Users size={36} className="text-muted-foreground/30 mx-auto mb-3" />
           <p className="text-sm font-medium text-muted-foreground">Nenhum colaborador encontrado</p>
           <p className="text-xs text-muted-foreground mt-1">
@@ -212,21 +213,21 @@ export default function ColaboradoresManager() {
           </p>
         </div>
       ) : (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           {filtered.map(c => (
             <div
               key={c.id}
-              className="bg-card rounded-lg border shadow-sm hover:border-primary/30 transition-colors cursor-pointer overflow-hidden"
+              className="bg-card rounded-xl border shadow-sm hover:border-primary/30 hover:bg-accent/20 transition-all cursor-pointer overflow-hidden"
               onClick={() => { setDetailColab(c); setDetailOpen(true); }}
             >
               <div className="flex items-center">
                 {/* Status bar */}
                 <div className={cn("w-1 self-stretch shrink-0", c.user_id ? 'bg-emerald-500' : 'bg-muted-foreground/20')} />
 
-                <div className="flex items-center gap-3 p-3 flex-1 min-w-0">
+                <div className="flex items-center gap-4 p-4 flex-1 min-w-0">
                   {/* Avatar */}
                   <div className={cn(
-                    "w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-sm font-bold",
+                    "w-11 h-11 rounded-full flex items-center justify-center shrink-0 text-sm font-bold",
                     c.user_id ? "bg-emerald-500/10 text-emerald-600" : "bg-muted text-muted-foreground/50"
                   )}>
                     {c.nome.charAt(0).toUpperCase()}

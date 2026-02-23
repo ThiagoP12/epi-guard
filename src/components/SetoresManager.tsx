@@ -106,11 +106,11 @@ export default function SetoresManager() {
   };
 
   return (
-    <div className="bg-card rounded-lg border p-5">
-      <div className="flex items-center justify-between mb-4">
+    <div className="bg-card rounded-xl border shadow-sm p-6">
+      <div className="flex items-center justify-between mb-5">
         <div>
-          <h2 className="text-sm font-semibold">Setores</h2>
-          <p className="text-xs text-muted-foreground mt-1">Gerencie os setores disponíveis para vincular aos colaboradores.</p>
+          <h2 className="text-sm font-semibold flex items-center gap-2"><span className="w-1.5 h-4 rounded-full bg-primary inline-block" /> Setores</h2>
+          <p className="text-xs text-muted-foreground mt-1.5 ml-3.5">Gerencie os setores disponíveis para vincular aos colaboradores.</p>
         </div>
         <div>
           <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={importing}>
@@ -121,21 +121,24 @@ export default function SetoresManager() {
       </div>
 
       {/* Add form */}
-      <div className="flex gap-2 mb-4">
+      <div className="flex gap-2.5 mb-5">
         <Input placeholder="Nome do setor" value={novoNome} onChange={e => setNovoNome(e.target.value)} className="flex-1" onKeyDown={e => e.key === 'Enter' && handleAdd()} />
         <Input placeholder="Descrição (opcional)" value={novaDescricao} onChange={e => setNovaDescricao(e.target.value)} className="flex-1" onKeyDown={e => e.key === 'Enter' && handleAdd()} />
-        <Button size="sm" onClick={handleAdd} disabled={loading || !novoNome.trim()}>
-          <Plus size={14} className="mr-1" /> Adicionar
+        <Button size="sm" onClick={handleAdd} disabled={loading || !novoNome.trim()} className="gap-1.5">
+          <Plus size={14} /> Adicionar
         </Button>
       </div>
 
       {/* List */}
       {setores.length === 0 ? (
-        <p className="text-xs text-muted-foreground text-center py-4">Nenhum setor cadastrado.</p>
+        <div className="text-center py-10">
+          <p className="text-sm text-muted-foreground">Nenhum setor cadastrado.</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">Adicione setores acima ou importe via CSV.</p>
+        </div>
       ) : (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           {setores.map(s => (
-            <div key={s.id} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+            <div key={s.id} className="flex items-center gap-3 rounded-lg border bg-muted/20 px-4 py-3 text-sm transition-colors hover:bg-accent/30">
               {editingId === s.id ? (
                 <>
                   <Input value={editNome} onChange={e => setEditNome(e.target.value)} className="h-7 text-xs flex-1" />
