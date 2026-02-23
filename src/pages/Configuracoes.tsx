@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { Save, Upload, X, ImageIcon, Camera, User, Building2, Users } from 'lucide-react';
+import { Save, Upload, X, ImageIcon, Camera, User, Building2, Users, ClipboardList } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import SetoresManager from '@/components/SetoresManager';
 import FuncoesManager from '@/components/FuncoesManager';
 import ColaboradoresManager from '@/components/ColaboradoresManager';
 import Revendas from '@/pages/Revendas';
+import Auditoria from '@/pages/Auditoria';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -189,6 +190,9 @@ export default function Configuracoes() {
           <TabsTrigger value="revendas" className="text-xs gap-1">
             <Building2 size={13} /> Revendas
           </TabsTrigger>
+          <TabsTrigger value="auditoria" className="text-xs gap-1">
+            <ClipboardList size={13} /> Auditoria
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="geral" className="space-y-6">
@@ -304,6 +308,10 @@ export default function Configuracoes() {
 
         <TabsContent value="revendas">
           <Revendas />
+        </TabsContent>
+
+        <TabsContent value="auditoria">
+          <Auditoria />
         </TabsContent>
       </Tabs>
     </div>
