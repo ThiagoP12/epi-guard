@@ -93,7 +93,7 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary mb-4 shadow-lg shadow-primary/20">
             <Shield className="text-primary-foreground" size={26} />
           </div>
-          <h1 className="text-xl font-bold text-foreground tracking-tight">Gestão de EPI & EPC</h1>
+          <h1 className="text-xl font-bold text-foreground tracking-tight">Gestão de EPIs</h1>
           <p className="text-sm text-muted-foreground mt-1.5">
             {mode === 'login' ? 'Acesse sua conta para continuar' : 'Cadastre sua empresa'}
           </p>
@@ -102,8 +102,8 @@ export default function Login() {
         {mode === 'login' ? (
           <form onSubmit={handleLogin} className="bg-card rounded-xl border shadow-sm p-6 space-y-4">
             <div>
-              <Label className="text-xs font-medium">CPF ou E-mail</Label>
-              <Input type="text" value={email} onChange={e => setEmail(e.target.value)} placeholder="000.000.000-00 ou seu@email.com" required className="mt-1.5 h-10" autoComplete="username" />
+              <Label className="text-xs font-medium">CPF</Label>
+              <Input type="text" value={email} onChange={e => setEmail(e.target.value)} placeholder="000.000.000-00" required className="mt-1.5 h-10" autoComplete="username" inputMode="numeric" />
             </div>
             <div>
               <Label className="text-xs font-medium">Senha</Label>
