@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Search, ClipboardCheck, Plus, UserCheck, History, FileDown, Loader2, Users, Building2, UserX, Settings2, Filter } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -64,6 +65,8 @@ export default function Colaboradores() {
   // Detail modal
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailColab, setDetailColab] = useState<Colaborador | null>(null);
+  const [detailEntregas, setDetailEntregas] = useState<EntregaHistorico[]>([]);
+  const [loadingDetailEntregas, setLoadingDetailEntregas] = useState(false);
 
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -172,6 +175,28 @@ export default function Colaboradores() {
   };
 
   // --- Histórico ---
+  const loadDetailEntregas = async (colabId: string) => {
+    setLoadingDetailEntregas(true);
+    setDetailEntregas([]);
+    const { data: entregasData } = await supabase
+      .from('entregas_epi')
+      .select('id, data_hora, motivo, assinatura_base64, observacao')
+      .eq('colaborador_id', colabId)
+      .order('data_hora', { ascending: false });
+    if (entregasData && entregasData.length > 0) {
+      const entregaIds = entregasData.map(e => e.id);
+      const { data: itensData } = await supabase
+        .from('entrega_epi_itens')
+        .select('entrega_id, nome_snapshot, ca_snapshot, quantidade, validade_snapshot')
+        .in('entrega_id', entregaIds);
+      setDetailEntregas(entregasData.map(e => ({
+        ...e,
+        itens: (itensData || []).filter(i => i.entrega_id === e.id),
+      })));
+    }
+    setLoadingDetailEntregas(false);
+  };
+
   const openHistorico = async (colab: Colaborador) => {
     setHistoricoColab(colab);
     setHistoricoOpen(true);
@@ -327,7 +352,7 @@ export default function Colaboradores() {
               ) : filtered.map((c) => (
                 <tr key={c.id} className={cn("table-row-hover group", !c.ativo && "opacity-50")}>
                   <td className="px-4 py-3">
-                    <button onClick={() => { setDetailColab(c); setDetailOpen(true); }} className="flex items-center gap-2.5 text-left hover:underline">
+                    <button onClick={() => { setDetailColab(c); setDetailOpen(true); loadDetailEntregas(c.id); }} className="flex items-center gap-2.5 text-left hover:underline">
                       <div className={cn(
                         "w-7 h-7 rounded-full flex items-center justify-center shrink-0",
                         c.ativo ? "bg-primary/10" : "bg-muted"
@@ -457,60 +482,118 @@ export default function Colaboradores() {
         </DialogContent>
       </Dialog>
 
-      {/* Detail Modal */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserCheck size={18} /> Detalhes do Colaborador
             </DialogTitle>
           </DialogHeader>
           {detailColab && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className={cn(
-                  "w-12 h-12 rounded-full flex items-center justify-center shrink-0",
-                  detailColab.ativo ? "bg-primary/10" : "bg-muted"
-                )}>
-                  <span className={cn("text-lg font-bold", detailColab.ativo ? "text-primary" : "text-muted-foreground")}>{detailColab.nome.charAt(0)}</span>
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground">{detailColab.nome}</h3>
-                  <p className="text-xs text-muted-foreground">{detailColab.matricula} • {detailColab.setor}</p>
-                  {!detailColab.ativo && <span className="text-[10px] text-status-warning font-medium">INATIVO</span>}
-                </div>
-              </div>
+            <Tabs defaultValue="dados" className="flex-1 overflow-hidden flex flex-col">
+              <TabsList className="w-full">
+                <TabsTrigger value="dados" className="flex-1 text-xs">Dados</TabsTrigger>
+                <TabsTrigger value="historico" className="flex-1 text-xs gap-1">
+                  <History size={13} /> Histórico de Entregas
+                </TabsTrigger>
+              </TabsList>
 
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  ['Função', detailColab.funcao],
-                  ['E-mail', detailColab.email || '—'],
-                  ['Admissão', detailColab.data_admissao ? formatDateShort(detailColab.data_admissao) : '—'],
-                  ['Setor', detailColab.setor],
-                  ['Uniforme', detailColab.tamanho_uniforme || '—'],
-                  ['Bota', detailColab.tamanho_bota || '—'],
-                  ['Luva', detailColab.tamanho_luva || '—'],
-                  ['Status', detailColab.ativo ? 'Ativo' : 'Inativo'],
-                ].map(([label, value]) => (
-                  <div key={label} className="bg-muted/30 rounded-md px-3 py-2">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
-                    <p className="text-sm font-medium text-foreground mt-0.5">{value}</p>
+              <TabsContent value="dados" className="flex-1 overflow-y-auto space-y-4 mt-3">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "w-12 h-12 rounded-full flex items-center justify-center shrink-0",
+                    detailColab.ativo ? "bg-primary/10" : "bg-muted"
+                  )}>
+                    <span className={cn("text-lg font-bold", detailColab.ativo ? "text-primary" : "text-muted-foreground")}>{detailColab.nome.charAt(0)}</span>
                   </div>
-                ))}
-              </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground">{detailColab.nome}</h3>
+                    <p className="text-xs text-muted-foreground">{detailColab.matricula} • {detailColab.setor}</p>
+                    {!detailColab.ativo && <span className="text-[10px] text-status-warning font-medium">INATIVO</span>}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    ['Função', detailColab.funcao],
+                    ['E-mail', detailColab.email || '—'],
+                    ['Admissão', detailColab.data_admissao ? formatDateShort(detailColab.data_admissao) : '—'],
+                    ['Setor', detailColab.setor],
+                    ['Uniforme', detailColab.tamanho_uniforme || '—'],
+                    ['Bota', detailColab.tamanho_bota || '—'],
+                    ['Luva', detailColab.tamanho_luva || '—'],
+                    ['Status', detailColab.ativo ? 'Ativo' : 'Inativo'],
+                  ].map(([label, value]) => (
+                    <div key={label} className="bg-muted/30 rounded-md px-3 py-2">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
+                      <p className="text-sm font-medium text-foreground mt-0.5">{value}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={() => { setDetailOpen(false); openEdit(detailColab); }}>
+                    <Settings2 size={13} className="mr-1" /> Editar
+                  </Button>
+                  <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={() => { setDetailOpen(false); navigate(`/entrega-epi?colaborador=${detailColab.id}`); }}>
+                    <ClipboardCheck size={13} className="mr-1" /> Nova Entrega
+                  </Button>
+                </div>
+              </TabsContent>
 
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={() => { setDetailOpen(false); openEdit(detailColab); }}>
-                  <Settings2 size={13} className="mr-1" /> Editar
-                </Button>
-                <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={() => { setDetailOpen(false); openHistorico(detailColab); }}>
-                  <History size={13} className="mr-1" /> Histórico
-                </Button>
-                <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={() => { setDetailOpen(false); navigate(`/entrega-epi?colaborador=${detailColab.id}`); }}>
-                  <ClipboardCheck size={13} className="mr-1" /> Entrega
-                </Button>
-              </div>
-            </div>
+              <TabsContent value="historico" className="flex-1 overflow-y-auto space-y-3 mt-3">
+                {loadingDetailEntregas ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : detailEntregas.length === 0 ? (
+                  <div className="py-12 text-center">
+                    <ClipboardCheck size={32} className="mx-auto text-muted-foreground/25 mb-3" />
+                    <p className="text-sm text-muted-foreground">Nenhuma entrega registrada.</p>
+                  </div>
+                ) : (
+                  detailEntregas.map((entrega) => (
+                    <div key={entrega.id} className="rounded-lg border bg-card p-3 space-y-2 animate-fade-in">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{formatDate(entrega.data_hora)}</p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            Motivo: <span className="font-medium">{entrega.motivo}</span>
+                            {entrega.observacao && <span> — {entrega.observacao}</span>}
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline" size="sm" className="h-7 text-[10px] gap-1 shrink-0"
+                          onClick={() => handleDownloadPdf(entrega.id)}
+                          disabled={downloadingPdf === entrega.id}
+                        >
+                          {downloadingPdf === entrega.id ? <Loader2 size={12} className="animate-spin" /> : <FileDown size={12} />}
+                          NR-06
+                        </Button>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b bg-muted/30">
+                              <th className="text-left px-2 py-1.5 font-medium text-muted-foreground">EPI/EPC</th>
+                              <th className="text-left px-2 py-1.5 font-medium text-muted-foreground">C.A.</th>
+                              <th className="text-center px-2 py-1.5 font-medium text-muted-foreground">Qtde</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {entrega.itens.map((item, idx) => (
+                              <tr key={idx}>
+                                <td className="px-2 py-1.5 font-medium">{item.nome_snapshot}</td>
+                                <td className="px-2 py-1.5 text-muted-foreground">{item.ca_snapshot || '—'}</td>
+                                <td className="px-2 py-1.5 text-center font-semibold">{item.quantidade}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </TabsContent>
+            </Tabs>
           )}
         </DialogContent>
       </Dialog>
