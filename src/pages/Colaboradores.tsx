@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, ClipboardCheck, Plus, UserCheck, History, FileDown, Loader2, Users, Building2, UserX, Settings2, Filter, KeyRound, Upload, Camera, PenLine, Package } from 'lucide-react';
+import { Search, ClipboardCheck, Plus, UserCheck, History, FileDown, Loader2, Users, Building2, UserX, Settings2, Filter, KeyRound, Upload, Camera, PenLine, Package, Download } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
@@ -415,6 +415,18 @@ export default function Colaboradores() {
           {isAdmin && (
             <>
               <input type="file" ref={fileInputRef} accept=".csv,.txt" className="hidden" onChange={handleImportCSV} />
+              <Button size="sm" variant="ghost" onClick={() => {
+                const header = 'nome;matricula;cpf;setor;funcao;email;data_admissao;tamanho_uniforme;tamanho_bota;tamanho_luva';
+                const example = 'João da Silva;MAT001;12345678909;Produção;Operador;joao@email.com;2025-01-15;M;42;G';
+                const blob = new Blob([header + '\n' + example + '\n'], { type: 'text/csv;charset=utf-8;' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'modelo_colaboradores.csv';
+                a.click();
+                URL.revokeObjectURL(a.href);
+              }} className="gap-1.5" title="Baixar modelo CSV">
+                <Download size={15} /> Modelo CSV
+              </Button>
               <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={importing || !selectedEmpresa} className="gap-1.5">
                 {importing ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
                 Importar CSV
