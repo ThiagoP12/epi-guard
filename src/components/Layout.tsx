@@ -168,48 +168,6 @@ export default function Layout() {
           )}
         </div>
 
-        <div className="flex items-center gap-1.5">
-          {/* Theme Toggle */}
-          <button
-            onClick={toggleTheme}
-            className="text-primary-foreground/70 hover:text-primary-foreground bg-primary-foreground/5 hover:bg-primary-foreground/15 transition-all duration-200 p-2 rounded-lg"
-            aria-label="Alternar tema"
-            title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
-          >
-            <div className="relative w-4 h-4">
-              <Sun size={16} className={cn("absolute inset-0 transition-all duration-300", theme === 'dark' ? "opacity-0 rotate-90 scale-0" : "opacity-100 rotate-0 scale-100")} />
-              <Moon size={16} className={cn("absolute inset-0 transition-all duration-300", theme === 'dark' ? "opacity-100 rotate-0 scale-100" : "opacity-0 -rotate-90 scale-0")} />
-            </div>
-          </button>
-
-          {/* Divider */}
-          <div className="w-px h-7 bg-primary-foreground/10 mx-1 hidden sm:block" />
-
-          {/* User Info */}
-          <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg bg-primary-foreground/5 hover:bg-primary-foreground/10 transition-colors">
-            {profile?.avatar_url ? (
-              <img src={profile.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover ring-2 ring-primary-foreground/20" />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-primary-foreground/20 flex items-center justify-center text-primary-foreground text-xs font-bold">
-                {(profile?.nome || 'U').charAt(0).toUpperCase()}
-              </div>
-            )}
-            <div className="text-right hidden sm:block">
-              <p className="text-primary-foreground text-sm font-semibold leading-tight">{profile?.nome || 'Usuário'}</p>
-              <p className="text-primary-foreground/50 text-[10px] capitalize leading-tight">{role || ''}</p>
-            </div>
-          </div>
-
-          {/* Logout */}
-          <button
-            onClick={signOut}
-            className="text-primary-foreground/50 hover:text-destructive-foreground hover:bg-destructive/20 transition-all duration-200 flex items-center gap-1.5 text-xs px-2.5 py-2 rounded-lg ml-0.5"
-            title="Sair do sistema"
-          >
-            <LogOut size={16} />
-            <span className="hidden sm:inline font-medium">Sair</span>
-          </button>
-        </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
@@ -260,10 +218,38 @@ export default function Layout() {
             })}
           </nav>
 
-          <div className="px-4 py-3 border-t border-sidebar-border">
+          {/* User footer */}
+          <div className="px-2 py-3 border-t border-sidebar-border">
             <div className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-status-ok animate-pulse-soft" />
-              <p className="text-[11px] text-sidebar-muted">Fase 1 • MVP</p>
+              {profile?.avatar_url ? (
+                <img src={profile.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover ring-2 ring-sidebar-accent shrink-0" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold shrink-0">
+                  {(profile?.nome || 'U').charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sidebar-foreground text-sm font-medium leading-tight truncate">{profile?.nome || 'Usuário'}</p>
+                <p className="text-sidebar-muted text-[10px] capitalize leading-tight truncate">{role || ''}</p>
+              </div>
+              <button
+                onClick={toggleTheme}
+                className="text-sidebar-muted hover:text-sidebar-foreground transition-colors p-1.5 rounded-md hover:bg-sidebar-accent/60 shrink-0"
+                aria-label="Alternar tema"
+                title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+              >
+                <div className="relative w-4 h-4">
+                  <Sun size={16} className={cn("absolute inset-0 transition-all duration-300", theme === 'dark' ? "opacity-0 rotate-90 scale-0" : "opacity-100 rotate-0 scale-100")} />
+                  <Moon size={16} className={cn("absolute inset-0 transition-all duration-300", theme === 'dark' ? "opacity-100 rotate-0 scale-100" : "opacity-0 -rotate-90 scale-0")} />
+                </div>
+              </button>
+              <button
+                onClick={signOut}
+                className="text-sidebar-muted hover:text-destructive transition-colors p-1.5 rounded-md hover:bg-sidebar-accent/60 shrink-0"
+                title="Sair"
+              >
+                <LogOut size={16} />
+              </button>
             </div>
           </div>
         </aside>
