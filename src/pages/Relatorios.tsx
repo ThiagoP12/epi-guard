@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { BarChart3, Download, FileDown, Filter, Calendar, Users, Package, ClipboardCheck, TrendingUp, Shield } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { Download, FileDown, Filter, Users, Package, ClipboardCheck, TrendingUp, Loader2, AlertTriangle, BarChart3, Calendar } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useEmpresa } from '@/contexts/EmpresaContext';
 import { Button } from '@/components/ui/button';
@@ -8,8 +8,10 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 import { cn } from '@/lib/utils';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 interface EntregaReport {
   id: string;
@@ -17,7 +19,7 @@ interface EntregaReport {
   motivo: string;
   colaborador_nome: string;
   colaborador_setor: string;
-  itens: { nome: string; ca: string | null; qtde: number }[];
+  itens: { nome: string; ca: string | null; qtde: number; custo: number }[];
 }
 
 interface EstoqueReport {
@@ -29,40 +31,62 @@ interface EstoqueReport {
   estoque_minimo: number;
   custo_unitario: number;
   data_validade: string | null;
+  marca: string | null;
 }
 
 const PIE_COLORS = [
-  'hsl(215, 70%, 40%)',
-  'hsl(142, 64%, 40%)',
-  'hsl(38, 92%, 50%)',
-  'hsl(0, 72%, 51%)',
-  'hsl(280, 60%, 50%)',
-  'hsl(190, 70%, 45%)',
+  'hsl(215, 70%, 40%)', 'hsl(142, 64%, 40%)', 'hsl(38, 92%, 50%)',
+  'hsl(0, 72%, 51%)', 'hsl(280, 60%, 50%)', 'hsl(190, 70%, 45%)',
+];
+
+const PERIOD_PRESETS = [
+  { label: '7 dias', days: 7 },
+  { label: '30 dias', days: 30 },
+  { label: '90 dias', days: 90 },
+  { label: '6 meses', days: 180 },
+  { label: 'Personalizado', days: 0 },
 ];
 
 export default function Relatorios() {
   const { selectedEmpresa } = useEmpresa();
   const { toast } = useToast();
+  const reportRef = useRef<HTMLDivElement>(null);
 
   // Filters
+  const [periodPreset, setPeriodPreset] = useState(30);
   const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date(); d.setMonth(d.getMonth() - 1);
+    const d = new Date(); d.setDate(d.getDate() - 30);
     return d.toISOString().slice(0, 10);
   });
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [setorFilter, setSetorFilter] = useState('todos');
+  const [motivoFilter, setMotivoFilter] = useState('todos');
+  const [colaboradorFilter, setColaboradorFilter] = useState('');
+  const [tipoFilter, setTipoFilter] = useState('todos');
 
-  // Report data
+  // Data
   const [entregas, setEntregas] = useState<EntregaReport[]>([]);
   const [estoque, setEstoque] = useState<EstoqueReport[]>([]);
   const [setores, setSetores] = useState<string[]>([]);
+  const [motivosUnicos, setMotivosUnicos] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('entregas');
+  const [exportingPdf, setExportingPdf] = useState(false);
 
-  // Chart data
+  // Charts
   const [entregasPorSetor, setEntregasPorSetor] = useState<{ name: string; value: number }[]>([]);
   const [entregasPorMotivo, setEntregasPorMotivo] = useState<{ name: string; value: number }[]>([]);
   const [entregasPorDia, setEntregasPorDia] = useState<{ label: string; entregas: number }[]>([]);
+
+  // Period preset handler
+  const handlePresetChange = (days: number) => {
+    setPeriodPreset(days);
+    if (days > 0) {
+      const d = new Date(); d.setDate(d.getDate() - days);
+      setDateFrom(d.toISOString().slice(0, 10));
+      setDateTo(new Date().toISOString().slice(0, 10));
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -78,13 +102,14 @@ export default function Relatorios() {
 
     let entregasList: EntregaReport[] = [];
     const setoresSet = new Set<string>();
+    const motivosSet = new Set<string>();
 
     if (entData) {
       const ids = entData.map((e: any) => e.id);
       let itensData: any[] = [];
       if (ids.length > 0) {
         const { data } = await supabase.from('entrega_epi_itens')
-          .select('entrega_id, nome_snapshot, ca_snapshot, quantidade')
+          .select('entrega_id, nome_snapshot, ca_snapshot, quantidade, custo_unitario_snapshot')
           .in('entrega_id', ids);
         itensData = data || [];
       }
@@ -92,6 +117,7 @@ export default function Relatorios() {
       entregasList = entData.map((e: any) => {
         const setor = e.colaboradores?.setor || '—';
         setoresSet.add(setor);
+        motivosSet.add(e.motivo);
         return {
           id: e.id,
           data_hora: e.data_hora,
@@ -99,19 +125,23 @@ export default function Relatorios() {
           colaborador_nome: e.colaboradores?.nome || '—',
           colaborador_setor: setor,
           itens: itensData.filter(i => i.entrega_id === e.id).map(i => ({
-            nome: i.nome_snapshot, ca: i.ca_snapshot, qtde: i.quantidade,
+            nome: i.nome_snapshot, ca: i.ca_snapshot, qtde: i.quantidade, custo: Number(i.custo_unitario_snapshot) || 0,
           })),
         };
       });
     }
 
-    // Apply setor filter
-    if (setorFilter !== 'todos') {
-      entregasList = entregasList.filter(e => e.colaborador_setor === setorFilter);
+    // Apply filters
+    if (setorFilter !== 'todos') entregasList = entregasList.filter(e => e.colaborador_setor === setorFilter);
+    if (motivoFilter !== 'todos') entregasList = entregasList.filter(e => e.motivo === motivoFilter);
+    if (colaboradorFilter) {
+      const s = colaboradorFilter.toLowerCase();
+      entregasList = entregasList.filter(e => e.colaborador_nome.toLowerCase().includes(s));
     }
 
     setEntregas(entregasList);
     setSetores(Array.from(setoresSet).sort());
+    setMotivosUnicos(Array.from(motivosSet).sort());
 
     // Charts
     const setorMap = new Map<string, number>();
@@ -127,7 +157,6 @@ export default function Relatorios() {
 
     setEntregasPorSetor(Array.from(setorMap.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value));
     setEntregasPorMotivo(Array.from(motivoMap.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value));
-
     const sortedDias = Array.from(diaMap.entries()).sort((a, b) => {
       const [da, ma] = a[0].split('/').map(Number);
       const [db, mb] = b[0].split('/').map(Number);
@@ -145,14 +174,9 @@ export default function Relatorios() {
       for (const p of prodData) {
         const { data: saldo } = await supabase.rpc('get_saldo_produto', { p_produto_id: p.id });
         estoqueList.push({
-          id: p.id,
-          codigo_interno: p.codigo_interno,
-          nome: p.nome,
-          tipo: p.tipo,
-          saldo: typeof saldo === 'number' ? saldo : 0,
-          estoque_minimo: p.estoque_minimo,
-          custo_unitario: p.custo_unitario || 0,
-          data_validade: p.data_validade,
+          id: p.id, codigo_interno: p.codigo_interno, nome: p.nome, tipo: p.tipo,
+          saldo: typeof saldo === 'number' ? saldo : 0, estoque_minimo: p.estoque_minimo,
+          custo_unitario: p.custo_unitario || 0, data_validade: p.data_validade, marca: p.marca,
         });
       }
     }
@@ -160,111 +184,122 @@ export default function Relatorios() {
     setLoading(false);
   };
 
-  useEffect(() => { loadData(); }, [selectedEmpresa, dateFrom, dateTo, setorFilter]);
+  useEffect(() => { loadData(); }, [selectedEmpresa, dateFrom, dateTo, setorFilter, motivoFilter, colaboradorFilter]);
 
   const formatCurrency = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-  // --- Export CSV ---
+  // Filtered estoque
+  const filteredEstoque = useMemo(() => {
+    if (tipoFilter === 'todos') return estoque;
+    return estoque.filter(p => p.tipo === tipoFilter);
+  }, [estoque, tipoFilter]);
+
+  // Estoque charts
+  const estoquePorTipo = useMemo(() => {
+    const map = new Map<string, number>();
+    filteredEstoque.forEach(p => map.set(p.tipo, (map.get(p.tipo) || 0) + 1));
+    return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
+  }, [filteredEstoque]);
+
+  const estoqueTop10Valor = useMemo(() => {
+    return [...filteredEstoque]
+      .sort((a, b) => (b.saldo * b.custo_unitario) - (a.saldo * a.custo_unitario))
+      .slice(0, 10)
+      .map(p => ({ name: p.nome.length > 20 ? p.nome.slice(0, 20) + '…' : p.nome, valor: p.saldo * p.custo_unitario }));
+  }, [filteredEstoque]);
+
+  // Stats
+  const totalItensEntregues = entregas.reduce((s, e) => s + e.itens.reduce((ss, i) => ss + i.qtde, 0), 0);
+  const custoTotalEntregas = entregas.reduce((s, e) => s + e.itens.reduce((ss, i) => ss + i.qtde * i.custo, 0), 0);
+  const totalValorEstoque = filteredEstoque.reduce((s, p) => s + p.saldo * p.custo_unitario, 0);
+  const estoqueBaixo = filteredEstoque.filter(p => p.saldo < p.estoque_minimo).length;
+
+  // --- CSV Export ---
   const exportCSV = (filename: string, headers: string[], rows: string[][]) => {
     const bom = '\uFEFF';
-    const csv = bom + [headers.join(';'), ...rows.map(r => r.join(';'))].join('\n');
+    const csv = bom + [headers.join(';'), ...rows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(';'))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
+    const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
     URL.revokeObjectURL(url);
     toast({ title: 'Exportado', description: `Arquivo ${filename} gerado.` });
   };
 
   const exportEntregasCSV = () => {
-    const headers = ['Data', 'Colaborador', 'Setor', 'Motivo', 'Itens', 'Quantidades'];
-    const rows = entregas.map(e => [
-      new Date(e.data_hora).toLocaleString('pt-BR'),
-      e.colaborador_nome,
-      e.colaborador_setor,
-      e.motivo,
-      e.itens.map(i => i.nome).join(', '),
-      e.itens.map(i => i.qtde).join(', '),
-    ]);
-    exportCSV(`entregas_${dateFrom}_${dateTo}.csv`, headers, rows);
+    exportCSV(`entregas_${dateFrom}_${dateTo}.csv`,
+      ['Data', 'Colaborador', 'Setor', 'Motivo', 'Itens', 'Quantidades', 'Custo Total'],
+      entregas.map(e => [
+        new Date(e.data_hora).toLocaleString('pt-BR'), e.colaborador_nome, e.colaborador_setor, e.motivo,
+        e.itens.map(i => i.nome).join(', '), e.itens.map(i => String(i.qtde)).join(', '),
+        formatCurrency(e.itens.reduce((s, i) => s + i.qtde * i.custo, 0)),
+      ])
+    );
   };
 
   const exportEstoqueCSV = () => {
-    const headers = ['Código', 'Produto', 'Tipo', 'Saldo', 'Mínimo', 'Custo Un.', 'Valor Total', 'Validade'];
-    const rows = estoque.map(p => [
-      p.codigo_interno,
-      p.nome,
-      p.tipo,
-      String(p.saldo),
-      String(p.estoque_minimo),
-      formatCurrency(p.custo_unitario),
-      formatCurrency(p.saldo * p.custo_unitario),
-      p.data_validade ? new Date(p.data_validade + 'T12:00:00').toLocaleDateString('pt-BR') : '—',
-    ]);
-    exportCSV('estoque_atual.csv', headers, rows);
+    exportCSV('estoque_atual.csv',
+      ['Código', 'Produto', 'Tipo', 'Marca', 'Saldo', 'Mínimo', 'Custo Un.', 'Valor Total', 'Validade'],
+      filteredEstoque.map(p => [
+        p.codigo_interno, p.nome, p.tipo, p.marca || '', String(p.saldo), String(p.estoque_minimo),
+        formatCurrency(p.custo_unitario), formatCurrency(p.saldo * p.custo_unitario),
+        p.data_validade ? new Date(p.data_validade + 'T12:00:00').toLocaleDateString('pt-BR') : '—',
+      ])
+    );
   };
 
-  // --- Export PDF (printable HTML) ---
-  const exportPDF = (title: string, content: string) => {
-    const html = `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>${title}</title>
-<style>
-  @page { size: A4 landscape; margin: 15mm; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: Arial, sans-serif; font-size: 11px; color: #222; }
-  h1 { font-size: 16px; color: #1a2744; margin-bottom: 4px; }
-  .meta { font-size: 10px; color: #888; margin-bottom: 12px; }
-  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-  th { background: #1a2744; color: white; padding: 6px 8px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; }
-  td { padding: 5px 8px; border-bottom: 1px solid #ddd; font-size: 10px; }
-  tr:nth-child(even) { background: #f9f9f9; }
-  .footer { margin-top: 16px; font-size: 9px; color: #aaa; text-align: center; border-top: 1px solid #ddd; padding-top: 6px; }
-</style></head><body>
-  <h1>${title}</h1>
-  <div class="meta">Gerado em ${new Date().toLocaleString('pt-BR')} • ${selectedEmpresa?.nome || 'Todas as empresas'}</div>
-  ${content}
-  <div class="footer">Sistema Gestão de EPI & EPC — Relatório gerado automaticamente</div>
-</body></html>`;
+  // --- PDF Export ---
+  const handleExportPdf = async (title: string) => {
+    if (!reportRef.current) return;
+    setExportingPdf(true);
+    try {
+      const canvas = await html2canvas(reportRef.current, { useCORS: true, scale: 2, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = pdf.internal.pageSize.getHeight();
 
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const w = window.open(url, '_blank');
-    if (w) {
-      w.onload = () => { w.print(); };
+      // Header
+      pdf.setFontSize(14);
+      pdf.setTextColor(26, 39, 68);
+      pdf.text(title, 15, 15);
+      pdf.setFontSize(8);
+      pdf.setTextColor(150);
+      pdf.text(`${selectedEmpresa?.nome || 'Todas as empresas'} • Gerado em ${new Date().toLocaleString('pt-BR')}`, 15, 21);
+      pdf.text(`Período: ${new Date(dateFrom).toLocaleDateString('pt-BR')} a ${new Date(dateTo).toLocaleDateString('pt-BR')}`, 15, 25);
+
+      const imgW = pdfW - 30;
+      const imgH = (canvas.height * imgW) / canvas.width;
+      const maxH = pdfH - 35;
+
+      if (imgH <= maxH) {
+        pdf.addImage(imgData, 'PNG', 15, 30, imgW, imgH);
+      } else {
+        // Multi-page
+        let yOffset = 0;
+        let pageNum = 0;
+        while (yOffset < canvas.height) {
+          if (pageNum > 0) pdf.addPage();
+          const sliceH = Math.min(canvas.height - yOffset, (maxH / imgW) * canvas.width);
+          const sliceCanvas = document.createElement('canvas');
+          sliceCanvas.width = canvas.width;
+          sliceCanvas.height = sliceH;
+          const ctx = sliceCanvas.getContext('2d')!;
+          ctx.drawImage(canvas, 0, yOffset, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+          const sliceImg = sliceCanvas.toDataURL('image/png');
+          const sliceImgH = (sliceH * imgW) / canvas.width;
+          pdf.addImage(sliceImg, 'PNG', 15, pageNum === 0 ? 30 : 10, imgW, sliceImgH);
+          yOffset += sliceH;
+          pageNum++;
+        }
+      }
+
+      pdf.save(`${title.toLowerCase().replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`);
+      toast({ title: 'PDF exportado', description: 'Arquivo salvo com sucesso.' });
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     }
-    toast({ title: 'PDF', description: 'Janela de impressão aberta.' });
+    setExportingPdf(false);
   };
-
-  const exportEntregasPDF = () => {
-    const rows = entregas.map(e =>
-      `<tr><td>${new Date(e.data_hora).toLocaleString('pt-BR')}</td><td>${e.colaborador_nome}</td><td>${e.colaborador_setor}</td><td>${e.motivo}</td><td>${e.itens.map(i => `${i.qtde}x ${i.nome}`).join(', ')}</td></tr>`
-    ).join('');
-    exportPDF(
-      `Relatório de Entregas — ${dateFrom} a ${dateTo}`,
-      `<table><thead><tr><th>Data</th><th>Colaborador</th><th>Setor</th><th>Motivo</th><th>Itens</th></tr></thead><tbody>${rows}</tbody></table>
-      <div class="meta" style="margin-top:8px">Total: ${entregas.length} entregas no período</div>`
-    );
-  };
-
-  const exportEstoquePDF = () => {
-    const rows = estoque.map(p => {
-      const baixo = p.saldo < p.estoque_minimo;
-      return `<tr style="${baixo ? 'color:#d32f2f;font-weight:bold' : ''}"><td>${p.codigo_interno}</td><td>${p.nome}</td><td>${p.tipo}</td><td style="text-align:right">${p.saldo}</td><td style="text-align:right">${p.estoque_minimo}</td><td style="text-align:right">${formatCurrency(p.custo_unitario)}</td><td style="text-align:right">${formatCurrency(p.saldo * p.custo_unitario)}</td></tr>`;
-    }).join('');
-    const totalValor = estoque.reduce((s, p) => s + p.saldo * p.custo_unitario, 0);
-    exportPDF(
-      'Relatório de Estoque Atual',
-      `<table><thead><tr><th>Código</th><th>Produto</th><th>Tipo</th><th style="text-align:right">Saldo</th><th style="text-align:right">Mín.</th><th style="text-align:right">Custo Un.</th><th style="text-align:right">Valor Total</th></tr></thead><tbody>${rows}</tbody></table>
-      <div class="meta" style="margin-top:8px">Total: ${estoque.length} produtos • Valor total em estoque: ${formatCurrency(totalValor)}</div>`
-    );
-  };
-
-  // Summary stats
-  const totalItensEntregues = entregas.reduce((s, e) => s + e.itens.reduce((ss, i) => ss + i.qtde, 0), 0);
-  const totalValorEstoque = estoque.reduce((s, p) => s + p.saldo * p.custo_unitario, 0);
-  const estoqueBaixo = estoque.filter(p => p.saldo < p.estoque_minimo).length;
 
   return (
     <div className="space-y-4">
@@ -276,6 +311,19 @@ export default function Relatorios() {
             {selectedEmpresa ? selectedEmpresa.nome : 'Todas as empresas'} • Análises e exportações
           </p>
         </div>
+        <div className="flex gap-1.5">
+          {PERIOD_PRESETS.map(p => (
+            <Button
+              key={p.days}
+              variant={periodPreset === p.days ? 'default' : 'outline'}
+              size="sm"
+              className="h-7 text-[11px] px-2.5 hidden sm:inline-flex"
+              onClick={() => handlePresetChange(p.days)}
+            >
+              {p.label}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {/* Filters */}
@@ -284,19 +332,38 @@ export default function Relatorios() {
           <div className="flex-1 min-w-0">
             <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Período</Label>
             <div className="flex gap-2 mt-1">
-              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-9 text-xs" />
-              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-9 text-xs" />
+              <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPeriodPreset(0); }} className="h-9 text-xs" />
+              <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPeriodPreset(0); }} className="h-9 text-xs" />
             </div>
           </div>
           <div>
             <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Setor</Label>
             <Select value={setorFilter} onValueChange={setSetorFilter}>
-              <SelectTrigger className="mt-1 w-40 h-9"><Filter size={13} className="mr-1" /><SelectValue /></SelectTrigger>
+              <SelectTrigger className="mt-1 w-36 h-9"><Filter size={13} className="mr-1" /><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos setores</SelectItem>
                 {setores.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
+          </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Motivo</Label>
+            <Select value={motivoFilter} onValueChange={setMotivoFilter}>
+              <SelectTrigger className="mt-1 w-40 h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos motivos</SelectItem>
+                {motivosUnicos.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Colaborador</Label>
+            <Input
+              placeholder="Buscar nome..."
+              value={colaboradorFilter}
+              onChange={e => setColaboradorFilter(e.target.value)}
+              className="mt-1 h-9 w-40 text-xs"
+            />
           </div>
         </div>
       </div>
@@ -310,72 +377,115 @@ export default function Relatorios() {
 
         {/* === ENTREGAS TAB === */}
         <TabsContent value="entregas" className="space-y-4 mt-4">
-          {/* Summary */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-card rounded-lg border p-3.5">
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Entregas no Período</p>
-              <p className="text-xl font-bold text-foreground mt-1">{loading ? '—' : entregas.length}</p>
+          <div ref={activeTab === 'entregas' ? reportRef : undefined}>
+            {/* Summary */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+              <div className="bg-card rounded-lg border p-3.5">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Entregas</p>
+                <p className="text-xl font-bold text-foreground mt-1">{loading ? '—' : entregas.length}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">no período selecionado</p>
+              </div>
+              <div className="bg-card rounded-lg border p-3.5">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Itens Entregues</p>
+                <p className="text-xl font-bold text-foreground mt-1">{loading ? '—' : totalItensEntregues}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">unidades distribuídas</p>
+              </div>
+              <div className="bg-card rounded-lg border p-3.5">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Custo Total</p>
+                <p className="text-xl font-bold text-foreground mt-1">{loading ? '—' : formatCurrency(custoTotalEntregas)}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">valor estimado</p>
+              </div>
+              <div className="bg-card rounded-lg border p-3.5">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Setores</p>
+                <p className="text-xl font-bold text-foreground mt-1">{loading ? '—' : entregasPorSetor.length}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">setores atendidos</p>
+              </div>
             </div>
-            <div className="bg-card rounded-lg border p-3.5">
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Itens Entregues</p>
-              <p className="text-xl font-bold text-foreground mt-1">{loading ? '—' : totalItensEntregues}</p>
-            </div>
-            <div className="bg-card rounded-lg border p-3.5">
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Setores Atendidos</p>
-              <p className="text-xl font-bold text-foreground mt-1">{loading ? '—' : entregasPorSetor.length}</p>
-            </div>
-          </div>
 
-          {/* Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-card rounded-lg border p-4">
-              <h3 className="text-xs font-semibold text-foreground mb-3">Entregas por Dia</h3>
-              <div className="h-48">
-                {loading ? (
-                  <div className="h-full flex items-center justify-center text-xs text-muted-foreground">Carregando...</div>
-                ) : entregasPorDia.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-xs text-muted-foreground">Sem dados no período</div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={entregasPorDia} barSize={20}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                      <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-                      <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} width={24} />
-                      <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 11 }} />
-                      <Bar dataKey="entregas" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
+            {/* Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+              <div className="lg:col-span-2 bg-card rounded-lg border p-4">
+                <h3 className="text-xs font-semibold text-foreground mb-3">Entregas por Dia</h3>
+                <div className="h-52">
+                  {loading ? (
+                    <div className="h-full flex items-center justify-center text-xs text-muted-foreground"><Loader2 size={16} className="animate-spin mr-2" /> Carregando...</div>
+                  ) : entregasPorDia.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-xs text-muted-foreground">Sem dados no período</div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={entregasPorDia} barSize={Math.max(6, Math.min(24, 500 / entregasPorDia.length))}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                        <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} interval={entregasPorDia.length > 15 ? Math.floor(entregasPorDia.length / 10) : 0} />
+                        <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} width={24} />
+                        <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 11 }} />
+                        <Bar dataKey="entregas" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+              <div className="bg-card rounded-lg border p-4">
+                <h3 className="text-xs font-semibold text-foreground mb-3">Por Motivo</h3>
+                <div className="h-52">
+                  {loading ? (
+                    <div className="h-full flex items-center justify-center text-xs text-muted-foreground"><Loader2 size={16} className="animate-spin" /></div>
+                  ) : entregasPorMotivo.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-xs text-muted-foreground">Sem dados</div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={entregasPorMotivo} cx="50%" cy="50%" innerRadius={35} outerRadius={65} paddingAngle={3} dataKey="value" nameKey="name">
+                          {entregasPorMotivo.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 11 }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                  {/* Legend */}
+                  {!loading && entregasPorMotivo.length > 0 && (
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 justify-center">
+                      {entregasPorMotivo.map((m, i) => (
+                        <div key={m.name} className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                          <div className="w-2 h-2 rounded-full" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                          {m.name} ({m.value})
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-            <div className="bg-card rounded-lg border p-4">
-              <h3 className="text-xs font-semibold text-foreground mb-3">Por Motivo</h3>
-              <div className="h-48">
-                {loading ? (
-                  <div className="h-full flex items-center justify-center text-xs text-muted-foreground">Carregando...</div>
-                ) : entregasPorMotivo.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-xs text-muted-foreground">Sem dados no período</div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={entregasPorMotivo} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={3} dataKey="value" nameKey="name" label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`} labelLine={false} style={{ fontSize: 9 }}>
-                        {entregasPorMotivo.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 11 }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
+
+            {/* Por Setor horizontal bar */}
+            {!loading && entregasPorSetor.length > 0 && (
+              <div className="bg-card rounded-lg border p-4 mb-4">
+                <h3 className="text-xs font-semibold text-foreground mb-3">Entregas por Setor</h3>
+                <div className="space-y-1.5">
+                  {entregasPorSetor.map((s, i) => {
+                    const maxVal = entregasPorSetor[0]?.value || 1;
+                    const pct = (s.value / maxVal) * 100;
+                    return (
+                      <div key={s.name} className="flex items-center gap-3">
+                        <span className="text-xs text-muted-foreground w-28 truncate text-right shrink-0">{s.name}</span>
+                        <div className="flex-1 h-5 bg-muted/40 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                        </div>
+                        <span className="text-xs font-bold tabular-nums w-8 text-right">{s.value}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Export buttons */}
           <div className="flex gap-2">
             <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={exportEntregasCSV} disabled={entregas.length === 0}>
-              <FileDown size={13} /> Exportar CSV
+              <FileDown size={13} /> CSV
             </Button>
-            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={exportEntregasPDF} disabled={entregas.length === 0}>
-              <Download size={13} /> Exportar PDF
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => handleExportPdf('Relatório de Entregas')} disabled={entregas.length === 0 || exportingPdf}>
+              {exportingPdf ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} PDF
             </Button>
           </div>
 
@@ -390,17 +500,16 @@ export default function Relatorios() {
                     <th className="text-left px-3 py-2.5 font-medium text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Setor</th>
                     <th className="text-left px-3 py-2.5 font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">Motivo</th>
                     <th className="text-left px-3 py-2.5 font-medium text-muted-foreground uppercase tracking-wider">Itens</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground uppercase tracking-wider hidden lg:table-cell">Custo</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {loading ? (
                     Array.from({ length: 5 }).map((_, i) => (
-                      <tr key={i}>
-                        {Array.from({ length: 5 }).map((_, j) => <td key={j} className="px-3 py-2.5"><div className="h-3.5 w-20 rounded skeleton-shimmer" /></td>)}
-                      </tr>
+                      <tr key={i}>{Array.from({ length: 6 }).map((_, j) => <td key={j} className="px-3 py-2.5"><div className="h-3.5 w-20 rounded skeleton-shimmer" /></td>)}</tr>
                     ))
                   ) : entregas.length === 0 ? (
-                    <tr><td colSpan={5} className="px-3 py-12 text-center text-muted-foreground">Nenhuma entrega no período selecionado.</td></tr>
+                    <tr><td colSpan={6} className="px-3 py-12 text-center text-muted-foreground">Nenhuma entrega no período selecionado.</td></tr>
                   ) : entregas.map(e => (
                     <tr key={e.id} className="table-row-hover">
                       <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{new Date(e.data_hora).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
@@ -408,6 +517,7 @@ export default function Relatorios() {
                       <td className="px-3 py-2.5 hidden sm:table-cell"><span className="bg-muted px-1.5 py-0.5 rounded-full text-[10px]">{e.colaborador_setor}</span></td>
                       <td className="px-3 py-2.5 hidden md:table-cell text-muted-foreground">{e.motivo}</td>
                       <td className="px-3 py-2.5 text-muted-foreground max-w-[200px] truncate">{e.itens.map(i => `${i.qtde}x ${i.nome}`).join(', ')}</td>
+                      <td className="px-3 py-2.5 text-right hidden lg:table-cell text-muted-foreground tabular-nums">{formatCurrency(e.itens.reduce((s, i) => s + i.qtde * i.custo, 0))}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -418,29 +528,113 @@ export default function Relatorios() {
 
         {/* === ESTOQUE TAB === */}
         <TabsContent value="estoque" className="space-y-4 mt-4">
-          {/* Summary */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-card rounded-lg border p-3.5">
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Total Produtos</p>
-              <p className="text-xl font-bold text-foreground mt-1">{loading ? '—' : estoque.length}</p>
+          <div ref={activeTab === 'estoque' ? reportRef : undefined}>
+            {/* Tipo filter */}
+            <div className="flex items-center gap-2 mb-4">
+              <Label className="text-xs text-muted-foreground">Tipo:</Label>
+              {['todos', 'EPI', 'EPC'].map(t => (
+                <Button key={t} variant={tipoFilter === t ? 'default' : 'outline'} size="sm" className="h-7 text-[11px] px-2.5" onClick={() => setTipoFilter(t)}>
+                  {t === 'todos' ? 'Todos' : t}
+                </Button>
+              ))}
             </div>
-            <div className="bg-card rounded-lg border p-3.5">
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Valor em Estoque</p>
-              <p className="text-xl font-bold text-foreground mt-1">{loading ? '—' : formatCurrency(totalValorEstoque)}</p>
+
+            {/* Summary */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+              <div className="bg-card rounded-lg border p-3.5">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Total Produtos</p>
+                <p className="text-xl font-bold text-foreground mt-1">{loading ? '—' : filteredEstoque.length}</p>
+              </div>
+              <div className="bg-card rounded-lg border p-3.5">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Valor em Estoque</p>
+                <p className="text-xl font-bold text-foreground mt-1">{loading ? '—' : formatCurrency(totalValorEstoque)}</p>
+              </div>
+              <div className="bg-card rounded-lg border p-3.5 border-l-2 border-l-status-danger">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Abaixo do Mínimo</p>
+                <p className="text-xl font-bold text-status-danger mt-1">{loading ? '—' : estoqueBaixo}</p>
+              </div>
+              <div className="bg-card rounded-lg border p-3.5">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Itens Vencendo</p>
+                <p className="text-xl font-bold text-status-warning mt-1">
+                  {loading ? '—' : filteredEstoque.filter(p => p.data_validade && Math.ceil((new Date(p.data_validade).getTime() - Date.now()) / 86400000) <= 30 && Math.ceil((new Date(p.data_validade).getTime() - Date.now()) / 86400000) > 0).length}
+                </p>
+              </div>
             </div>
-            <div className="bg-card rounded-lg border p-3.5 border-l-2 border-l-status-danger">
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Abaixo do Mínimo</p>
-              <p className="text-xl font-bold text-status-danger mt-1">{loading ? '—' : estoqueBaixo}</p>
+
+            {/* Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+              <div className="bg-card rounded-lg border p-4">
+                <h3 className="text-xs font-semibold text-foreground mb-3">Distribuição por Tipo</h3>
+                <div className="h-48">
+                  {loading ? (
+                    <div className="h-full flex items-center justify-center text-xs text-muted-foreground"><Loader2 size={16} className="animate-spin" /></div>
+                  ) : estoquePorTipo.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-xs text-muted-foreground">Sem dados</div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={estoquePorTipo} cx="50%" cy="50%" innerRadius={35} outerRadius={65} paddingAngle={5} dataKey="value" nameKey="name" label={({ name, value }) => `${name}: ${value}`} style={{ fontSize: 11 }}>
+                          {estoquePorTipo.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 11 }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+              <div className="bg-card rounded-lg border p-4">
+                <h3 className="text-xs font-semibold text-foreground mb-3">Top 10 por Valor em Estoque</h3>
+                <div className="h-48">
+                  {loading ? (
+                    <div className="h-full flex items-center justify-center text-xs text-muted-foreground"><Loader2 size={16} className="animate-spin" /></div>
+                  ) : estoqueTop10Valor.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-xs text-muted-foreground">Sem dados</div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={estoqueTop10Valor} layout="vertical" barSize={14}>
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
+                        <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} tickFormatter={(v) => formatCurrency(v)} />
+                        <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} width={100} />
+                        <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => formatCurrency(v)} />
+                        <Bar dataKey="valor" fill="hsl(142, 64%, 40%)" radius={[0, 3, 3, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
             </div>
+
+            {/* Critical items */}
+            {!loading && estoqueBaixo > 0 && (
+              <div className="bg-status-danger/5 border border-status-danger/20 rounded-lg p-3 mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertTriangle size={14} className="text-status-danger" />
+                  <h3 className="text-xs font-semibold text-status-danger">Itens Críticos — Abaixo do Estoque Mínimo</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {filteredEstoque.filter(p => p.saldo < p.estoque_minimo).map(p => (
+                    <div key={p.id} className="flex items-center gap-2 bg-background rounded-md px-3 py-2 border">
+                      <div className="w-6 h-6 rounded-full bg-status-danger/10 flex items-center justify-center">
+                        <Package size={12} className="text-status-danger" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium truncate">{p.nome}</p>
+                        <p className="text-[10px] text-muted-foreground">Saldo: <span className="text-status-danger font-bold">{p.saldo}</span> / Mín: {p.estoque_minimo}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Export buttons */}
+          {/* Export */}
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={exportEstoqueCSV} disabled={estoque.length === 0}>
-              <FileDown size={13} /> Exportar CSV
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={exportEstoqueCSV} disabled={filteredEstoque.length === 0}>
+              <FileDown size={13} /> CSV
             </Button>
-            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={exportEstoquePDF} disabled={estoque.length === 0}>
-              <Download size={13} /> Exportar PDF
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => handleExportPdf('Relatório de Estoque')} disabled={filteredEstoque.length === 0 || exportingPdf}>
+              {exportingPdf ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} PDF
             </Button>
           </div>
 
@@ -453,6 +647,7 @@ export default function Relatorios() {
                     <th className="text-left px-3 py-2.5 font-medium text-muted-foreground uppercase tracking-wider">Código</th>
                     <th className="text-left px-3 py-2.5 font-medium text-muted-foreground uppercase tracking-wider">Produto</th>
                     <th className="text-left px-3 py-2.5 font-medium text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Tipo</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">Marca</th>
                     <th className="text-right px-3 py-2.5 font-medium text-muted-foreground uppercase tracking-wider">Saldo</th>
                     <th className="text-right px-3 py-2.5 font-medium text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Mín.</th>
                     <th className="text-right px-3 py-2.5 font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">Custo Un.</th>
@@ -463,16 +658,15 @@ export default function Relatorios() {
                 <tbody className="divide-y">
                   {loading ? (
                     Array.from({ length: 5 }).map((_, i) => (
-                      <tr key={i}>
-                        {Array.from({ length: 8 }).map((_, j) => <td key={j} className="px-3 py-2.5"><div className="h-3.5 w-16 rounded skeleton-shimmer" /></td>)}
-                      </tr>
+                      <tr key={i}>{Array.from({ length: 9 }).map((_, j) => <td key={j} className="px-3 py-2.5"><div className="h-3.5 w-16 rounded skeleton-shimmer" /></td>)}</tr>
                     ))
-                  ) : estoque.length === 0 ? (
-                    <tr><td colSpan={8} className="px-3 py-12 text-center text-muted-foreground">Nenhum produto cadastrado.</td></tr>
-                  ) : estoque.map(p => {
+                  ) : filteredEstoque.length === 0 ? (
+                    <tr><td colSpan={9} className="px-3 py-12 text-center text-muted-foreground">Nenhum produto encontrado.</td></tr>
+                  ) : filteredEstoque.map(p => {
                     const baixo = p.saldo < p.estoque_minimo;
+                    const vencido = p.data_validade && new Date(p.data_validade) < new Date();
                     return (
-                      <tr key={p.id} className={cn("table-row-hover", baixo && "bg-status-danger-bg/30")}>
+                      <tr key={p.id} className={cn("table-row-hover", baixo && "bg-status-danger/5")}>
                         <td className="px-3 py-2.5 font-mono text-muted-foreground">{p.codigo_interno}</td>
                         <td className="px-3 py-2.5 font-medium">{p.nome}</td>
                         <td className="px-3 py-2.5 hidden sm:table-cell">
@@ -480,11 +674,12 @@ export default function Relatorios() {
                             p.tipo === 'EPI' ? 'bg-primary/10 text-primary' : 'bg-status-warning/10 text-status-warning'
                           )}>{p.tipo}</span>
                         </td>
+                        <td className="px-3 py-2.5 hidden md:table-cell text-muted-foreground">{p.marca || '—'}</td>
                         <td className={cn("px-3 py-2.5 text-right font-bold tabular-nums", baixo && "text-status-danger")}>{p.saldo}</td>
                         <td className="px-3 py-2.5 text-right hidden sm:table-cell text-muted-foreground">{p.estoque_minimo}</td>
                         <td className="px-3 py-2.5 text-right hidden md:table-cell text-muted-foreground">{p.custo_unitario > 0 ? formatCurrency(p.custo_unitario) : '—'}</td>
                         <td className="px-3 py-2.5 text-right hidden lg:table-cell text-muted-foreground">{p.custo_unitario > 0 ? formatCurrency(p.saldo * p.custo_unitario) : '—'}</td>
-                        <td className="px-3 py-2.5 hidden lg:table-cell text-muted-foreground">
+                        <td className={cn("px-3 py-2.5 hidden lg:table-cell", vencido ? "text-status-danger font-medium" : "text-muted-foreground")}>
                           {p.data_validade ? new Date(p.data_validade + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}
                         </td>
                       </tr>
