@@ -273,6 +273,60 @@ export type Database = {
           },
         ]
       }
+      inspecoes_epc: {
+        Row: {
+          acoes_corretivas: string | null
+          created_at: string
+          data_inspecao: string
+          empresa_id: string | null
+          id: string
+          observacao: string | null
+          produto_id: string
+          proxima_inspecao: string | null
+          responsavel_id: string
+          status: string
+        }
+        Insert: {
+          acoes_corretivas?: string | null
+          created_at?: string
+          data_inspecao?: string
+          empresa_id?: string | null
+          id?: string
+          observacao?: string | null
+          produto_id: string
+          proxima_inspecao?: string | null
+          responsavel_id: string
+          status?: string
+        }
+        Update: {
+          acoes_corretivas?: string | null
+          created_at?: string
+          data_inspecao?: string
+          empresa_id?: string | null
+          id?: string
+          observacao?: string | null
+          produto_id?: string
+          proxima_inspecao?: string | null
+          responsavel_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspecoes_epc_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspecoes_epc_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       movimentacoes_estoque: {
         Row: {
           ajuste_tipo: Database["public"]["Enums"]["ajuste_tipo"] | null
