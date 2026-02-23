@@ -141,69 +141,60 @@ export default function Auditoria() {
   const hasFilters = search || tipoFilter !== 'todos' || dateFilter;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5 page-enter">
+      {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold text-foreground">Auditoria & Logs</h1>
-        <p className="text-xs text-muted-foreground mt-0.5">
+        <h1 className="text-lg font-semibold text-foreground flex items-center gap-2.5">
+          <div className="p-1.5 rounded-lg bg-primary/10">
+            <ArrowUpDown size={18} className="text-primary" />
+          </div>
+          Auditoria & Logs
+        </h1>
+        <p className="text-xs text-muted-foreground mt-1 ml-[34px]">
           {selectedEmpresa?.nome || 'Todas as empresas'} • Rastreabilidade completa de movimentações
         </p>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-card rounded-lg border p-3.5 border-l-2 border-l-status-ok">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Entradas</p>
-            <TrendingUp size={14} className="text-status-ok" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+        {[
+          { label: 'Entradas', value: stats.totalEntradas, sub: `${stats.countEntradas} movimentações`, icon: TrendingUp, color: 'text-[hsl(var(--status-ok))]', bg: 'bg-[hsl(var(--status-ok))]/10', borderColor: 'border-l-[hsl(var(--status-ok))]' },
+          { label: 'Saídas', value: stats.totalSaidas, sub: `${stats.countSaidas} movimentações`, icon: TrendingDown, color: 'text-[hsl(var(--status-danger))]', bg: 'bg-[hsl(var(--status-danger))]/10', borderColor: 'border-l-[hsl(var(--status-danger))]' },
+          { label: 'Operadores', value: stats.uniqueUsers, sub: 'usuários distintos', icon: Users, color: 'text-primary', bg: 'bg-primary/10', borderColor: 'border-l-primary' },
+          { label: 'Registros', value: filtered.length, sub: 'nesta página', icon: Package, color: 'text-muted-foreground', bg: 'bg-muted', borderColor: 'border-l-muted-foreground' },
+        ].map(kpi => (
+          <div key={kpi.label} className={cn("bg-card rounded-xl border border-l-[3px] p-4", kpi.borderColor)}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{kpi.label}</span>
+              <div className={cn("p-1.5 rounded-lg", kpi.bg)}>
+                <kpi.icon size={14} className={kpi.color} />
+              </div>
+            </div>
+            <p className={cn("text-2xl font-bold tracking-tight", kpi.color)}>{loading ? '—' : kpi.value}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">{kpi.sub}</p>
           </div>
-          <p className="text-xl font-bold text-status-ok">{loading ? '—' : stats.totalEntradas}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">{stats.countEntradas} movimentações</p>
-        </div>
-        <div className="bg-card rounded-lg border p-3.5 border-l-2 border-l-status-danger">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Saídas</p>
-            <TrendingDown size={14} className="text-status-danger" />
-          </div>
-          <p className="text-xl font-bold text-status-danger">{loading ? '—' : stats.totalSaidas}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">{stats.countSaidas} movimentações</p>
-        </div>
-        <div className="bg-card rounded-lg border p-3.5">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Operadores</p>
-            <Users size={14} className="text-muted-foreground" />
-          </div>
-          <p className="text-xl font-bold text-foreground">{loading ? '—' : stats.uniqueUsers}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">usuários distintos</p>
-        </div>
-        <div className="bg-card rounded-lg border p-3.5">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Registros</p>
-            <Package size={14} className="text-muted-foreground" />
-          </div>
-          <p className="text-xl font-bold text-foreground">{loading ? '—' : filtered.length}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">nesta página</p>
-        </div>
+        ))}
       </div>
 
       {/* Filters */}
-      <div className="bg-card rounded-lg border p-3">
-        <div className="flex flex-col sm:flex-row gap-2.5">
+      <div className="bg-card rounded-xl border shadow-sm p-3">
+        <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Buscar produto, usuário, colaborador, motivo..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9" />
           </div>
           <Select value={tipoFilter} onValueChange={setTipoFilter}>
-            <SelectTrigger className="w-full sm:w-36 h-9">
-              <Filter size={13} className="mr-1" /><SelectValue />
+            <SelectTrigger className="w-full sm:w-36 h-9 text-xs">
+              <Filter size={12} className="mr-1 shrink-0 text-muted-foreground" /><SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="todos">Todos tipos</SelectItem>
               <SelectItem value="ENTRADA">Entradas</SelectItem>
               <SelectItem value="SAIDA">Saídas</SelectItem>
               <SelectItem value="AJUSTE">Ajustes</SelectItem>
             </SelectContent>
           </Select>
-          <Input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="w-full sm:w-40 h-9" />
+          <Input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="w-full sm:w-40 h-9 text-xs" />
           {hasFilters && (
             <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 text-xs gap-1 text-muted-foreground">
               <X size={13} /> Limpar
@@ -212,96 +203,93 @@ export default function Auditoria() {
         </div>
       </div>
 
-      {/* Log Table */}
-      <div className="bg-card rounded-lg border overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/40">
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">Data/Hora</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">Tipo</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">Produto</th>
-                <th className="text-center px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">Qtde</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider hidden md:table-cell">Operador</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider hidden lg:table-cell">Colaborador</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider hidden xl:table-cell">Motivo</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider w-16">Info</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {loading ? (
-                Array.from({ length: 8 }).map((_, i) => (
-                  <tr key={i}>
-                    {Array.from({ length: 8 }).map((_, j) => (
-                      <td key={j} className="px-4 py-3"><div className="h-4 w-20 rounded skeleton-shimmer" /></td>
-                    ))}
-                  </tr>
-                ))
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="text-center py-16 text-sm text-muted-foreground">
-                    Nenhum registro encontrado.
-                  </td>
-                </tr>
-              ) : filtered.map(log => {
-                const tc = typeConfig(log);
-                const Icon = tc.icon;
-                return (
-                  <tr key={log.id} className="group hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap font-mono">{formatDate(log.data_hora)}</td>
-                    <td className="px-4 py-2.5">
-                      <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full", tc.bg, tc.color)}>
-                        <Icon size={11} /> {tc.label}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <p className="text-xs font-medium truncate max-w-[180px]">{log.produto_nome}</p>
-                      {log.produto_ca && <p className="text-[10px] text-muted-foreground">CA: {log.produto_ca}</p>}
-                    </td>
-                    <td className="px-4 py-2.5 text-center">
-                      <span className={cn("text-sm font-bold", tc.color)}>
-                        {(log.tipo_movimentacao === 'SAIDA' || (log.tipo_movimentacao === 'AJUSTE' && log.ajuste_tipo === 'REDUCAO')) ? '−' : '+'}{log.quantidade}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 hidden md:table-cell">
-                      <p className="text-xs truncate max-w-[140px]">{log.usuario_nome || '—'}</p>
-                    </td>
-                    <td className="px-4 py-2.5 hidden lg:table-cell">
-                      <p className="text-xs text-muted-foreground truncate max-w-[140px]">{log.colaborador_nome || '—'}</p>
-                    </td>
-                    <td className="px-4 py-2.5 hidden xl:table-cell">
-                      <p className="text-xs text-muted-foreground truncate max-w-[200px]">{log.motivo || '—'}</p>
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 opacity-60 group-hover:opacity-100"
-                        onClick={() => { setSelectedLog(log); setDetailOpen(true); }}
-                      >
-                        <Eye size={14} />
-                      </Button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      {/* Log List - Card Style */}
+      <div className="space-y-1.5">
+        {loading ? (
+          Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="bg-card rounded-xl border p-4 animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-muted" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3.5 bg-muted rounded w-1/3" />
+                  <div className="h-2.5 bg-muted rounded w-1/2" />
+                </div>
+              </div>
+            </div>
+          ))
+        ) : filtered.length === 0 ? (
+          <div className="bg-card rounded-xl border p-16 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-muted mx-auto mb-4 flex items-center justify-center">
+              <Package size={24} className="text-muted-foreground/40" />
+            </div>
+            <p className="text-sm font-medium text-foreground">Nenhum registro encontrado</p>
+            <p className="text-xs text-muted-foreground mt-1.5">Tente ajustar os filtros de busca.</p>
+          </div>
+        ) : filtered.map(log => {
+          const tc = typeConfig(log);
+          const Icon = tc.icon;
+          return (
+            <div
+              key={log.id}
+              className="bg-card rounded-xl border shadow-sm card-interactive cursor-pointer overflow-hidden transition-all duration-150 hover:bg-accent/30"
+              onClick={() => { setSelectedLog(log); setDetailOpen(true); }}
+            >
+              <div className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4">
+                {/* Type icon */}
+                <div className={cn("w-9 h-9 rounded-full flex items-center justify-center shrink-0", tc.bg)}>
+                  <Icon size={16} className={tc.color} />
+                </div>
 
-        {/* Pagination */}
-        <div className="flex items-center justify-between px-4 py-3 border-t bg-muted/20">
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-foreground truncate">{log.produto_nome}</p>
+                    <span className={cn("inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0", tc.bg, tc.color)}>
+                      {tc.label}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-[11px] text-muted-foreground">
+                    <span className="font-mono flex items-center gap-1">
+                      <Calendar size={10} />
+                      {formatDate(log.data_hora)}
+                    </span>
+                    {log.usuario_nome && <span className="flex items-center gap-1"><Users size={10} /> {log.usuario_nome}</span>}
+                    {log.colaborador_nome && <span className="hidden sm:inline">{log.colaborador_nome}</span>}
+                    {log.produto_ca && <span className="hidden sm:inline font-mono">CA: {log.produto_ca}</span>}
+                    {log.motivo && <span className="hidden lg:inline truncate max-w-[200px]">{log.motivo}</span>}
+                  </div>
+                </div>
+
+                {/* Quantity */}
+                <div className="text-right shrink-0">
+                  <span className={cn("text-lg font-bold", tc.color)}>
+                    {(log.tipo_movimentacao === 'SAIDA' || (log.tipo_movimentacao === 'AJUSTE' && log.ajuste_tipo === 'REDUCAO')) ? '−' : '+'}{log.quantidade}
+                  </span>
+                  <p className="text-[10px] text-muted-foreground">un.</p>
+                </div>
+
+                {/* Detail arrow */}
+                <Eye size={14} className="text-muted-foreground/40 shrink-0 hidden sm:block" />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Pagination */}
+      {!loading && filtered.length > 0 && (
+        <div className="flex items-center justify-between bg-card rounded-xl border shadow-sm px-4 py-3">
           <p className="text-[11px] text-muted-foreground">Página {page + 1}</p>
           <div className="flex gap-1.5">
-            <Button variant="outline" size="sm" className="h-7 text-xs" disabled={page === 0} onClick={() => loadLogs(page - 1)}>
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1" disabled={page === 0} onClick={() => loadLogs(page - 1)}>
               <ChevronLeft size={14} /> Anterior
             </Button>
-            <Button variant="outline" size="sm" className="h-7 text-xs" disabled={!hasMore} onClick={() => loadLogs(page + 1)}>
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1" disabled={!hasMore} onClick={() => loadLogs(page + 1)}>
               Próxima <ChevronRight size={14} />
             </Button>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Detail Modal */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
@@ -324,7 +312,7 @@ export default function Auditoria() {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2.5">
                   {[
                     ['Data/Hora', formatDate(selectedLog.data_hora)],
                     ['Produto', selectedLog.produto_nome],
@@ -335,17 +323,16 @@ export default function Auditoria() {
                     ['NF/Ref.', selectedLog.referencia_nf || '—'],
                     ['Observação', selectedLog.observacao || '—'],
                   ].map(([label, value]) => (
-                    <div key={label} className="bg-muted/30 rounded-md px-3 py-2">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
+                    <div key={label} className="bg-muted/30 rounded-lg px-3 py-2.5">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">{label}</p>
                       <p className="text-sm font-medium text-foreground mt-0.5 break-words">{value}</p>
                     </div>
                   ))}
                 </div>
 
-                {/* Selfie + Signature */}
                 {(selectedLog.selfie_base64 || selectedLog.assinatura_base64) && (
-                  <div className="border rounded-lg p-3 space-y-2">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Evidências</p>
+                  <div className="border rounded-xl p-3.5 space-y-2">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Evidências</p>
                     <div className="flex gap-4 items-start">
                       {selectedLog.selfie_base64 && (
                         <div>
