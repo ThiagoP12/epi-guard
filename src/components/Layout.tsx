@@ -16,12 +16,15 @@ import {
   Building2,
   ChevronsUpDown,
   Check,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEmpresa } from '@/contexts/EmpresaContext';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { supabase } from '@/integrations/supabase/client';
+import { useTheme } from '@/hooks/useTheme';
 
 const menuItems = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/', phase: 1 },
@@ -41,6 +44,7 @@ export default function Layout() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const { profile, role, signOut } = useAuth();
   const { empresas, selectedEmpresa, setSelectedEmpresa } = useEmpresa();
+  const { theme, toggleTheme } = useTheme();
 
   // Load logo from storage
   useEffect(() => {
@@ -151,6 +155,16 @@ export default function Layout() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={toggleTheme}
+            className="text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-all duration-150 p-1.5 rounded-md"
+            aria-label="Alternar tema"
+          >
+            <div className="relative w-4 h-4">
+              <Sun size={16} className={cn("absolute inset-0 transition-all duration-300", theme === 'dark' ? "opacity-0 rotate-90 scale-0" : "opacity-100 rotate-0 scale-100")} />
+              <Moon size={16} className={cn("absolute inset-0 transition-all duration-300", theme === 'dark' ? "opacity-100 rotate-0 scale-100" : "opacity-0 -rotate-90 scale-0")} />
+            </div>
+          </button>
           <div className="text-right hidden sm:block mr-1">
             <p className="text-primary-foreground/90 text-sm font-medium leading-none">{profile?.nome || 'Usuário'}</p>
             <p className="text-primary-foreground/50 text-[10px] capitalize mt-0.5">{role || ''}</p>
