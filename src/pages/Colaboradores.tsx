@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Search, ClipboardCheck, Plus, UserCheck, History, FileDown, Loader2, Users, Building2, UserX, Settings2, Filter, KeyRound } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { Search, ClipboardCheck, Plus, UserCheck, History, FileDown, Loader2, Users, Building2, UserX, Settings2, Filter, KeyRound, Upload } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useEmpresa } from '@/contexts/EmpresaContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
 interface Colaborador {
@@ -107,6 +108,10 @@ export default function Colaboradores() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { selectedEmpresa } = useEmpresa();
+  const { role } = useAuth();
+  const isAdmin = role === 'admin';
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -284,6 +289,70 @@ export default function Colaboradores() {
   const formatDateShort = (iso: string) =>
     new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR');
 
+  const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!selectedEmpresa) {
+      toast({ title: 'Selecione uma empresa', description: 'É obrigatório vincular colaboradores a uma empresa/revenda.', variant: 'destructive' });
+      e.target.value = '';
+      return;
+    }
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) throw new Error('Arquivo vazio ou sem dados.');
+
+      const separator = lines[0].includes(';') ? ';' : ',';
+      const headers = lines[0].split(separator).map(h => h.replace(/"/g, '').trim().toLowerCase());
+
+      const mapCol = (names: string[]) => headers.findIndex(h => names.some(n => h.includes(n)));
+      const iNome = mapCol(['nome']);
+      const iMatricula = mapCol(['matricula', 'matrícula']);
+      const iSetor = mapCol(['setor']);
+      const iFuncao = mapCol(['funcao', 'função', 'cargo']);
+      const iCpf = mapCol(['cpf']);
+      const iEmail = mapCol(['email', 'e-mail']);
+      const iAdmissao = mapCol(['admissao', 'admissão', 'data_admissao']);
+      const iUniforme = mapCol(['uniforme', 'tamanho_uniforme']);
+      const iBota = mapCol(['bota', 'tamanho_bota', 'calcado', 'calçado']);
+      const iLuva = mapCol(['luva', 'tamanho_luva']);
+
+      if (iNome === -1 || iMatricula === -1 || iSetor === -1 || iFuncao === -1) {
+        throw new Error('Colunas obrigatórias não encontradas: nome, matricula, setor, funcao.');
+      }
+
+      const rows = lines.slice(1).map(line => {
+        const cols = line.split(separator).map(c => c.replace(/"/g, '').trim());
+        return {
+          nome: cols[iNome] || '',
+          matricula: cols[iMatricula] || '',
+          setor: cols[iSetor] || '',
+          funcao: cols[iFuncao] || '',
+          cpf: iCpf >= 0 ? cols[iCpf] || null : null,
+          email: iEmail >= 0 ? cols[iEmail] || null : null,
+          data_admissao: iAdmissao >= 0 && cols[iAdmissao] ? cols[iAdmissao] : new Date().toISOString().slice(0, 10),
+          tamanho_uniforme: iUniforme >= 0 ? cols[iUniforme] || null : null,
+          tamanho_bota: iBota >= 0 ? cols[iBota] || null : null,
+          tamanho_luva: iLuva >= 0 ? cols[iLuva] || null : null,
+          empresa_id: selectedEmpresa.id,
+        };
+      }).filter(r => r.nome && r.matricula && r.setor && r.funcao);
+
+      if (rows.length === 0) throw new Error('Nenhuma linha válida encontrada.');
+
+      const { error } = await supabase.from('colaboradores').insert(rows);
+      if (error) throw error;
+
+      toast({ title: 'Importação concluída', description: `${rows.length} colaboradores importados para ${selectedEmpresa.nome}.` });
+      load();
+    } catch (err: any) {
+      toast({ title: 'Erro na importação', description: err.message, variant: 'destructive' });
+    }
+    setImporting(false);
+    e.target.value = '';
+  };
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -294,9 +363,20 @@ export default function Colaboradores() {
             {selectedEmpresa ? selectedEmpresa.nome : 'Todas as empresas'} • {stats.total} ativos
           </p>
         </div>
-        <Button size="sm" onClick={openAdd} className="gap-1.5">
-          <Plus size={15} /> Novo Colaborador
-        </Button>
+        <div className="flex gap-2">
+          {isAdmin && (
+            <>
+              <input type="file" ref={fileInputRef} accept=".csv,.txt" className="hidden" onChange={handleImportCSV} />
+              <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={importing || !selectedEmpresa} className="gap-1.5">
+                {importing ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+                Importar CSV
+              </Button>
+            </>
+          )}
+          <Button size="sm" onClick={openAdd} className="gap-1.5">
+            <Plus size={15} /> Novo Colaborador
+          </Button>
+        </div>
       </div>
 
       {/* KPI Cards */}
