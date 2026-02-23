@@ -75,8 +75,10 @@ export default function ColaboradoresManager() {
 
   const openCreateAccount = (c: Colaborador) => {
     setAccountColab(c);
-    setAccountEmail(c.email || '');
-    setAccountPassword('');
+    // Auto-fill: CPF as email identifier, default password
+    const cpfDigits = c.cpf?.replace(/\D/g, '') || '';
+    setAccountEmail(cpfDigits ? `${cpfDigits}@portal.local` : c.email || '');
+    setAccountPassword('rev123');
     setShowPassword(false);
     setAccountOpen(true);
   };

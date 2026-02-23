@@ -34,7 +34,7 @@ serve(async (req) => {
       .eq('user_id', caller.id)
       .single();
 
-    if (roleData?.role !== 'admin') {
+    if (roleData?.role !== 'admin' && roleData?.role !== 'super_admin') {
       throw new Error('Apenas administradores podem criar contas de colaboradores');
     }
 
@@ -68,8 +68,7 @@ serve(async (req) => {
 
     // Set role as 'colaborador'
     await adminClient.from('user_roles')
-      .update({ role: 'colaborador' })
-      .eq('user_id', newUser.user.id);
+      .upsert({ user_id: newUser.user.id, role: 'colaborador' }, { onConflict: 'user_id,role' });
 
     // Link colaborador to auth user
     await adminClient
