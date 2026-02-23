@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Filter, Plus, Minus, PackageOpen, Package, AlertTriangle, DollarSign, History, Settings2, ArrowUpDown, Eye, Users, Download } from 'lucide-react';
+import { Search, Filter, Plus, Minus, PackageOpen, Package, AlertTriangle, DollarSign, History, Settings2, ArrowUpDown, Eye, Users, Download, Power } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -61,6 +61,7 @@ const emptyProduct = {
 export default function Estoque() {
   const [produtos, setProdutos] = useState<ProdutoComSaldo[]>([]);
   const [search, setSearch] = useState('');
+  const [showInativos, setShowInativos] = useState(false);
   const [tipoFilter, setTipoFilter] = useState('todos');
   const [statusFilter, setStatusFilter] = useState('todos');
 
@@ -110,7 +111,8 @@ export default function Estoque() {
 
   const loadProdutos = async () => {
     setLoading(true);
-    let query = supabase.from('produtos').select('*').eq('ativo', true).order('codigo_interno');
+    let query = supabase.from('produtos').select('*').order('codigo_interno');
+    if (!showInativos) query = query.eq('ativo', true);
     if (selectedEmpresa) query = query.eq('empresa_id', selectedEmpresa.id);
     const { data } = await query;
     if (!data) { setLoading(false); return; }
@@ -124,7 +126,7 @@ export default function Estoque() {
     setLoading(false);
   };
 
-  useEffect(() => { loadProdutos(); }, [selectedEmpresa]);
+  useEffect(() => { loadProdutos(); }, [selectedEmpresa, showInativos]);
 
   const filtered = produtos.filter((p) => {
     const s = search.toLowerCase();
@@ -322,6 +324,17 @@ export default function Estoque() {
     toast({ title: 'Exportado', description: `${filtered.length} itens exportados em CSV.` });
   };
 
+  const handleToggleAtivo = async (product: ProdutoComSaldo) => {
+    const newAtivo = !product.ativo;
+    const { error } = await supabase.from('produtos').update({ ativo: newAtivo }).eq('id', product.id);
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Sucesso', description: newAtivo ? 'Produto reativado.' : 'Produto inativado.' });
+      loadProdutos();
+    }
+  };
+
   const movTypeLabel = (m: Movimentacao) => {
     if (m.tipo_movimentacao === 'AJUSTE') return m.ajuste_tipo === 'AUMENTO' ? 'Ajuste +' : 'Ajuste −';
     return m.tipo_movimentacao === 'ENTRADA' ? 'Entrada' : 'Saída';
@@ -411,6 +424,9 @@ export default function Estoque() {
               <SelectItem value="vencendo">Vencendo</SelectItem>
             </SelectContent>
           </Select>
+          <Button size="sm" variant={showInativos ? 'default' : 'outline'} onClick={() => setShowInativos(!showInativos)} className="gap-1.5 h-9">
+            <Power size={13} /> {showInativos ? 'Mostrando inativos' : 'Ver inativos'}
+          </Button>
         </div>
       </div>
 
@@ -446,7 +462,7 @@ export default function Estoque() {
               ) : filtered.map((p) => {
                 const st = getStatus(p);
                 return (
-                  <tr key={p.id} className="table-row-hover group">
+                  <tr key={p.id} className={cn("table-row-hover group", !p.ativo && "opacity-50")}>
                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{p.codigo_interno}</td>
                     <td className="px-4 py-3">
                       <button onClick={() => openDetail(p)} className="text-left hover:underline">
@@ -488,6 +504,9 @@ export default function Estoque() {
                         </Button>
                         <Button variant="ghost" size="sm" className="h-7 px-1.5 text-xs" onClick={() => openEditProduct(p)} title="Editar">
                           <Settings2 size={13} />
+                        </Button>
+                        <Button variant="ghost" size="sm" className={cn("h-7 px-1.5 text-xs", p.ativo ? "text-status-danger hover:text-status-danger" : "text-status-ok hover:text-status-ok")} onClick={() => handleToggleAtivo(p)} title={p.ativo ? 'Inativar' : 'Reativar'}>
+                          <Power size={13} />
                         </Button>
                       </div>
                     </td>
