@@ -29,6 +29,7 @@ interface Colaborador {
   tamanho_bota: string | null;
   tamanho_luva: string | null;
   centro_custo: string | null;
+  empresa_id: string | null;
 }
 
 const CENTROS_CUSTO = [
@@ -53,7 +54,7 @@ const emptyForm = {
   nome: '', matricula: '', cpf: '', setor: '', funcao: '', email: '',
   data_admissao: new Date().toISOString().slice(0, 10),
   tamanho_uniforme: '', tamanho_bota: '', tamanho_luva: '',
-  centro_custo: '',
+  centro_custo: '', empresa_id: '',
 };
 
 export default function Colaboradores() {
@@ -123,7 +124,7 @@ export default function Colaboradores() {
 
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { selectedEmpresa } = useEmpresa();
+  const { empresas, selectedEmpresa } = useEmpresa();
   const { role } = useAuth();
   const isAdmin = role === 'admin' || role === 'super_admin';
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -182,7 +183,7 @@ export default function Colaboradores() {
   // --- CRUD ---
   const openAdd = () => {
     setEditingId(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, empresa_id: selectedEmpresa?.id || '' });
     setFormOpen(true);
   };
 
@@ -200,6 +201,7 @@ export default function Colaboradores() {
       tamanho_bota: c.tamanho_bota || '',
       tamanho_luva: c.tamanho_luva || '',
       centro_custo: c.centro_custo || '',
+      empresa_id: c.empresa_id || '',
     });
     setFormOpen(true);
   };
@@ -207,6 +209,10 @@ export default function Colaboradores() {
   const handleSave = async () => {
     if (!form.nome || !form.matricula || !form.setor || !form.funcao) {
       toast({ title: 'Atenção', description: 'Preencha nome, matrícula, setor e função.', variant: 'destructive' });
+      return;
+    }
+    if (!form.empresa_id && !selectedEmpresa) {
+      toast({ title: 'Atenção', description: 'Selecione uma revenda/empresa.', variant: 'destructive' });
       return;
     }
     if (form.cpf && !validateCPF(form.cpf)) {
@@ -227,7 +233,7 @@ export default function Colaboradores() {
       tamanho_bota: form.tamanho_bota || null,
       tamanho_luva: form.tamanho_luva || null,
       centro_custo: form.centro_custo || null,
-      empresa_id: selectedEmpresa?.id || null,
+      empresa_id: form.empresa_id || selectedEmpresa?.id || null,
     };
 
     let error;
@@ -624,6 +630,25 @@ export default function Colaboradores() {
             <DialogTitle>{editingId ? '✏️ Editar Colaborador' : '➕ Novo Colaborador'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+            {/* Empresa/Revenda */}
+            <div>
+              <Label className="text-xs font-medium">Revenda / Empresa *</Label>
+              <Select value={form.empresa_id} onValueChange={(v) => setForm({ ...form, empresa_id: v })}>
+                <SelectTrigger className="mt-1 h-9">
+                  <SelectValue placeholder="Selecionar revenda..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {empresas.map(e => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.nome}{e.cnpj ? ` (${e.cnpj})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!form.empresa_id && (
+                <p className="text-[10px] text-destructive mt-0.5">Obrigatório vincular a uma revenda</p>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Nome Completo *</Label>
