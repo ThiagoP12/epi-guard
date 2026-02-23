@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useEmpresa } from '@/contexts/EmpresaContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import { formatCPF, validateCPF } from '@/lib/cpf';
 
 interface Colaborador {
   id: string;
@@ -175,12 +176,16 @@ export default function Colaboradores() {
       toast({ title: 'Atenção', description: 'Preencha nome, matrícula, setor e função.', variant: 'destructive' });
       return;
     }
+    if (form.cpf && !validateCPF(form.cpf)) {
+      toast({ title: 'CPF inválido', description: 'Verifique os dígitos do CPF informado.', variant: 'destructive' });
+      return;
+    }
     setSubmitting(true);
 
     const payload = {
       nome: form.nome,
       matricula: form.matricula,
-      cpf: form.cpf || null,
+      cpf: form.cpf ? form.cpf.replace(/\D/g, '') : null,
       setor: form.setor,
       funcao: form.funcao,
       email: form.email || null,
@@ -539,7 +544,8 @@ export default function Colaboradores() {
               </div>
               <div>
                 <Label className="text-xs">CPF</Label>
-                <Input value={form.cpf} onChange={(e) => setForm({ ...form, cpf: e.target.value })} className="mt-1 h-9" placeholder="000.000.000-00" />
+                <Input value={form.cpf} onChange={(e) => setForm({ ...form, cpf: formatCPF(e.target.value) })} className={cn("mt-1 h-9", form.cpf && !validateCPF(form.cpf) && "border-destructive")} placeholder="000.000.000-00" maxLength={14} />
+                {form.cpf && !validateCPF(form.cpf) && <p className="text-[10px] text-destructive mt-0.5">CPF inválido</p>}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
