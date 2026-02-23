@@ -19,6 +19,7 @@ import Auditoria from "./pages/Auditoria";
 import Usuarios from "./pages/Usuarios";
 import AdminTenants from "./pages/AdminTenants";
 import PortalColaborador from "./pages/PortalColaborador";
+import LoginColaborador from "./pages/LoginColaborador";
 import NotFound from "./pages/NotFound";
 import { Shield, Clock, Building2, LogOut } from "lucide-react";
 import { Button } from "./components/ui/button";
@@ -187,6 +188,14 @@ function LoginRoute() {
   return <Login />;
 }
 
+function LoginColaboradorRoute() {
+  const { user, loading, role } = useAuth();
+  if (loading) return null;
+  if (user && role === 'colaborador') return <Navigate to="/portal/colaborador" replace />;
+  if (user) return <Navigate to="/" replace />;
+  return <LoginColaborador />;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -196,6 +205,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginRoute />} />
+            <Route path="/portal/login" element={<LoginColaboradorRoute />} />
             <Route path="/*" element={<ProtectedRoutes />} />
           </Routes>
         </BrowserRouter>
