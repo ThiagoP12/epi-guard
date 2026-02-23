@@ -105,6 +105,7 @@ export type Database = {
       }
       empresas: {
         Row: {
+          aprovado: boolean
           ativo: boolean
           cnpj: string | null
           created_at: string
@@ -117,6 +118,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          aprovado?: boolean
           ativo?: boolean
           cnpj?: string | null
           created_at?: string
@@ -129,6 +131,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          aprovado?: boolean
           ativo?: boolean
           cnpj?: string | null
           created_at?: string
@@ -739,6 +742,7 @@ export type Database = {
         | "supervisor"
         | "tecnico"
         | "colaborador"
+        | "super_admin"
       motivo_entrega:
         | "Primeira entrega"
         | "Troca por desgaste"
@@ -882,6 +886,7 @@ export const Constants = {
         "supervisor",
         "tecnico",
         "colaborador",
+        "super_admin",
       ],
       motivo_entrega: [
         "Primeira entrega",
