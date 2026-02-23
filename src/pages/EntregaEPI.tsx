@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, FileDown, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/input';
@@ -29,6 +29,30 @@ export default function EntregaEPI() {
   const [assinatura, setAssinatura] = useState<string | null>(null);
   const [declaracao, setDeclaracao] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [lastEntregaId, setLastEntregaId] = useState<string | null>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const handleDownloadPdf = async (entregaId: string) => {
+    setDownloadingPdf(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-nr06-pdf', {
+        body: { entregaId },
+      });
+      if (error) throw error;
+      if (!data?.html) throw new Error('PDF HTML not returned');
+
+      // Open HTML in new window for print/save as PDF
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.write(data.html);
+        win.document.close();
+        setTimeout(() => win.print(), 500);
+      }
+    } catch (err: any) {
+      toast({ title: 'Erro ao gerar PDF', description: err.message, variant: 'destructive' });
+    }
+    setDownloadingPdf(false);
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -116,6 +140,7 @@ export default function EntregaEPI() {
       }
 
       toast({ title: 'Entrega registrada!', description: 'Assinatura e movimentação salvas com sucesso.' });
+      setLastEntregaId(entrega.id);
 
       // Reset form
       setColaboradorId('');
@@ -225,6 +250,27 @@ export default function EntregaEPI() {
               </>
             )}
           </Button>
+
+          {/* PDF Download after success */}
+          {lastEntregaId && (
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-status-ok-bg border border-status-ok/20 animate-fade-in">
+              <CheckCircle size={18} className="text-status-ok shrink-0" />
+              <div className="flex-1">
+                <p className="text-xs font-medium text-foreground">Entrega registrada com sucesso!</p>
+                <p className="text-[10px] text-muted-foreground">Código: {lastEntregaId.substring(0, 8).toUpperCase()}</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1.5"
+                onClick={() => handleDownloadPdf(lastEntregaId)}
+                disabled={downloadingPdf}
+              >
+                {downloadingPdf ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />}
+                Termo NR-06
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>

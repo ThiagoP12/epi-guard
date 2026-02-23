@@ -1,1 +1,4 @@
 project_id = "euqpoknexixqhqfqgvns"
+
+[functions.generate-nr06-pdf]
+verify_jwt = false
