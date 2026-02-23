@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, ClipboardCheck, Users, AlertTriangle, TrendingUp, Clock, ArrowRight, Calendar } from 'lucide-react';
+import { Package, ClipboardCheck, Users, AlertTriangle, TrendingUp, Clock, ArrowRight, Calendar, Shield, Award, Medal } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { StatusBadge } from '@/components/StatusBadge';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
@@ -25,6 +25,11 @@ interface ChartData {
   entregas: number;
 }
 
+interface RankingItem {
+  nome: string;
+  quantidade: number;
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { selectedEmpresa } = useEmpresa();
@@ -32,13 +37,17 @@ export default function Dashboard() {
   const [activities, setActivities] = useState<RecentActivity[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [chartData, setChartData] = useState<ChartData[]>([]);
+  const [topColaboradores, setTopColaboradores] = useState<RankingItem[]>([]);
+  const [topEPIs, setTopEPIs] = useState<RankingItem[]>([]);
+  const [topEPCs, setTopEPCs] = useState<RankingItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadAll = async () => {
       setLoading(true);
+
       // --- Stats ---
-      let prodQuery = supabase.from('produtos').select('id, nome, estoque_minimo, data_validade, ca').eq('ativo', true);
+      let prodQuery = supabase.from('produtos').select('id, nome, estoque_minimo, data_validade, ca, tipo').eq('ativo', true);
       if (selectedEmpresa) prodQuery = prodQuery.eq('empresa_id', selectedEmpresa.id);
       const { data: produtos } = await prodQuery;
       let estoqueBaixo = 0;
@@ -104,6 +113,89 @@ export default function Dashboard() {
         });
       }
       setChartData(days);
+
+      // --- Top 5 Colaboradores que mais recebem ---
+      let entregasItensQuery = supabase.from('entregas_epi')
+        .select('colaborador_id, colaboradores(nome), entrega_epi_itens(quantidade)')
+        .order('data_hora', { ascending: false })
+        .limit(500);
+      if (selectedEmpresa) entregasItensQuery = entregasItensQuery.eq('empresa_id', selectedEmpresa.id);
+      const { data: entregasData } = await entregasItensQuery;
+
+      if (entregasData) {
+        // Aggregate by colaborador
+        const colabMap = new Map<string, { nome: string; total: number }>();
+        for (const e of entregasData as any[]) {
+          const nome = e.colaboradores?.nome || 'Desconhecido';
+          const key = e.colaborador_id;
+          const qtd = (e.entrega_epi_itens || []).reduce((sum: number, i: any) => sum + (i.quantidade || 0), 0);
+          const existing = colabMap.get(key);
+          if (existing) {
+            existing.total += qtd;
+          } else {
+            colabMap.set(key, { nome, total: qtd });
+          }
+        }
+        const sorted = Array.from(colabMap.values())
+          .sort((a, b) => b.total - a.total)
+          .slice(0, 5)
+          .map(c => ({ nome: c.nome, quantidade: c.total }));
+        setTopColaboradores(sorted);
+
+        // Aggregate by produto for EPI and EPC
+        const prodMap = new Map<string, { nome: string; tipo: string; total: number }>();
+        for (const e of entregasData as any[]) {
+          for (const item of (e.entrega_epi_itens || []) as any[]) {
+            // We need produto info - use itens with nome_snapshot
+          }
+        }
+      }
+
+      // --- Top 5 EPIs and EPCs (from entrega_epi_itens joined with produtos) ---
+      let itensQuery = supabase.from('entrega_epi_itens')
+        .select('entrega_id, nome_snapshot, quantidade, produto_id, produtos(tipo)')
+        .limit(1000);
+      // Filter by empresa through entregas
+      const { data: allItens } = await itensQuery;
+
+      if (allItens) {
+        // If we have empresa filter, we need to filter by entregas in that empresa
+        let filteredItens = allItens as any[];
+        if (selectedEmpresa) {
+          // Get entrega IDs for this empresa
+          let entregaIdsQuery = supabase.from('entregas_epi')
+            .select('id')
+            .eq('empresa_id', selectedEmpresa.id);
+          const { data: entregaIds } = await entregaIdsQuery;
+          if (entregaIds) {
+            const idSet = new Set(entregaIds.map(e => e.id));
+            filteredItens = filteredItens.filter((i: any) => idSet.has(i.entrega_id));
+          }
+        }
+
+        const epiMap = new Map<string, number>();
+        const epcMap = new Map<string, number>();
+
+        for (const item of filteredItens) {
+          const tipo = item.produtos?.tipo || 'EPI';
+          const nome = item.nome_snapshot;
+          const map = tipo === 'EPC' ? epcMap : epiMap;
+          map.set(nome, (map.get(nome) || 0) + item.quantidade);
+        }
+
+        setTopEPIs(
+          Array.from(epiMap.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([nome, quantidade]) => ({ nome, quantidade }))
+        );
+        setTopEPCs(
+          Array.from(epcMap.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([nome, quantidade]) => ({ nome, quantidade }))
+        );
+      }
 
       // --- Recent activities ---
       let recentEntregaQuery = supabase.from('entregas_epi')
@@ -190,9 +282,75 @@ export default function Dashboard() {
     saida: <Package size={14} className="text-status-danger" />,
   };
 
+  const medalColors = ['text-amber-500', 'text-zinc-400', 'text-amber-700', 'text-muted-foreground', 'text-muted-foreground'];
+
+  const RankingCard = ({ title, icon: Icon, items, emptyText, accentColor }: {
+    title: string;
+    icon: typeof Users;
+    items: RankingItem[];
+    emptyText: string;
+    accentColor: string;
+  }) => (
+    <div className="bg-card rounded-lg border p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <div className={`p-1.5 rounded-md ${accentColor}`}>
+          <Icon size={16} className="text-primary-foreground" />
+        </div>
+        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+      </div>
+      {loading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <div className="h-6 w-6 rounded-full skeleton-shimmer" />
+              <div className="h-4 flex-1 rounded skeleton-shimmer" />
+              <div className="h-4 w-10 rounded skeleton-shimmer" />
+            </div>
+          ))}
+        </div>
+      ) : items.length === 0 ? (
+        <p className="text-xs text-muted-foreground text-center py-6">{emptyText}</p>
+      ) : (
+        <div className="space-y-1">
+          {items.map((item, idx) => {
+            const maxQty = items[0]?.quantidade || 1;
+            const pct = (item.quantidade / maxQty) * 100;
+            return (
+              <div key={idx} className="group relative flex items-center gap-3 py-2 px-2 rounded-md hover:bg-muted/40 transition-colors">
+                <div className="relative z-10 flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center shrink-0">
+                    {idx < 3 ? (
+                      <Medal size={14} className={medalColors[idx]} />
+                    ) : (
+                      <span className="text-[10px] font-bold text-muted-foreground">{idx + 1}</span>
+                    )}
+                  </div>
+                  <span className="text-xs font-medium text-foreground truncate flex-1">{item.nome}</span>
+                  <span className="text-xs font-bold tabular-nums text-foreground shrink-0">{item.quantidade}</span>
+                </div>
+                {/* Progress bar background */}
+                <div
+                  className="absolute inset-0 rounded-md bg-primary/5 transition-all duration-300"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-foreground">Dashboard</h1>
+      <div>
+        <h1 className="text-xl font-semibold text-foreground">Dashboard</h1>
+        {selectedEmpresa && (
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Dados de <span className="font-medium text-foreground">{selectedEmpresa.nome}</span>
+          </p>
+        )}
+      </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -274,6 +432,31 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Rankings Row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <RankingCard
+          title="Top 5 Colaboradores"
+          icon={Users}
+          items={topColaboradores}
+          emptyText="Nenhuma entrega registrada ainda."
+          accentColor="bg-primary"
+        />
+        <RankingCard
+          title="Top 5 EPIs"
+          icon={Award}
+          items={topEPIs}
+          emptyText="Nenhum EPI entregue ainda."
+          accentColor="bg-status-ok"
+        />
+        <RankingCard
+          title="Top 5 EPCs"
+          icon={Shield}
+          items={topEPCs}
+          emptyText="Nenhum EPC entregue ainda."
+          accentColor="bg-status-warning"
+        />
       </div>
 
       {/* Alerts */}
