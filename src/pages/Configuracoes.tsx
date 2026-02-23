@@ -179,26 +179,34 @@ export default function Configuracoes() {
   const paramKeys = ['dias_alerta_vencimento', 'periodicidade_inspecao_epc', 'criterio_epi_atualizado_meses', 'data_ultimo_acidente'];
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-foreground mb-5">Configurações</h1>
-      <Tabs defaultValue="geral" className="max-w-3xl">
-        <TabsList className="mb-4">
-          <TabsTrigger value="geral" className="text-xs">Geral</TabsTrigger>
-          <TabsTrigger value="colaboradores" className="text-xs gap-1">
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-lg font-semibold text-foreground flex items-center gap-2.5">
+          <div className="p-1.5 rounded-lg bg-primary/10">
+            <Save size={18} className="text-primary" />
+          </div>
+          Configurações
+        </h1>
+        <p className="text-xs text-muted-foreground mt-1 ml-[34px]">Gerencie perfil, empresa, setores, funções e parâmetros do sistema.</p>
+      </div>
+      <Tabs defaultValue="geral">
+        <TabsList className="mb-5 h-10">
+          <TabsTrigger value="geral" className="text-xs gap-1.5 px-4">Geral</TabsTrigger>
+          <TabsTrigger value="colaboradores" className="text-xs gap-1.5 px-4">
             <Users size={13} /> Colaborador
           </TabsTrigger>
-          <TabsTrigger value="revendas" className="text-xs gap-1">
+          <TabsTrigger value="revendas" className="text-xs gap-1.5 px-4">
             <Building2 size={13} /> Revendas
           </TabsTrigger>
-          <TabsTrigger value="auditoria" className="text-xs gap-1">
+          <TabsTrigger value="auditoria" className="text-xs gap-1.5 px-4">
             <ClipboardList size={13} /> Auditoria
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="geral" className="space-y-6">
+        <TabsContent value="geral" className="space-y-5">
           {/* Meu Perfil */}
-          <div className="bg-card rounded-lg border p-5">
-            <h2 className="text-sm font-semibold mb-4">Meu Perfil</h2>
+          <div className="bg-card rounded-xl border shadow-sm p-6">
+            <h2 className="text-sm font-semibold mb-5 flex items-center gap-2"><User size={15} className="text-primary" /> Meu Perfil</h2>
             <div className="flex items-center gap-5">
               <div className="relative group">
                 <div className="w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center overflow-hidden bg-muted/30 shrink-0">
@@ -235,8 +243,8 @@ export default function Configuracoes() {
             </div>
           </div>
           {/* Logo da Empresa */}
-          <div className="bg-card rounded-lg border p-5">
-            <h2 className="text-sm font-semibold mb-4">Logo da Empresa</h2>
+          <div className="bg-card rounded-xl border shadow-sm p-6">
+            <h2 className="text-sm font-semibold mb-5 flex items-center gap-2"><ImageIcon size={15} className="text-primary" /> Logo da Empresa</h2>
             <div className="flex items-center gap-5">
               <div className="w-24 h-24 rounded-lg border-2 border-dashed flex items-center justify-center overflow-hidden bg-muted/30 shrink-0">
                 {logoUrl ? (
@@ -268,8 +276,8 @@ export default function Configuracoes() {
           {/* Funções */}
           <FuncoesManager />
 
-          <div className="bg-card rounded-lg border p-5">
-            <h2 className="text-sm font-semibold mb-4">Dados da Empresa (Termo NR-06)</h2>
+          <div className="bg-card rounded-xl border shadow-sm p-6">
+            <h2 className="text-sm font-semibold mb-5 flex items-center gap-2"><Building2 size={15} className="text-primary" /> Dados da Empresa (Termo NR-06)</h2>
             <div className="space-y-3">
               {empresaKeys.map(key => (
                 <div key={key}>
@@ -280,9 +288,9 @@ export default function Configuracoes() {
             </div>
           </div>
 
-          <div className="bg-card rounded-lg border p-5">
-            <h2 className="text-sm font-semibold mb-4">Parâmetros do Sistema</h2>
-            <div className="grid grid-cols-2 gap-3">
+          <div className="bg-card rounded-xl border shadow-sm p-6">
+            <h2 className="text-sm font-semibold mb-5 flex items-center gap-2"><ClipboardList size={15} className="text-primary" /> Parâmetros do Sistema</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {paramKeys.map(key => (
                 <div key={key}>
                   <Label>{labels[key] || key}</Label>
