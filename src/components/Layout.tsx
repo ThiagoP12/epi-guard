@@ -78,24 +78,25 @@ export default function Layout() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Top Bar */}
-      <header className="h-14 bg-primary flex items-center justify-between px-4 shrink-0 z-30 relative shadow-sm">
-        <div className="flex items-center gap-3">
+      <header className="h-11 sm:h-14 bg-primary flex items-center justify-between px-2.5 sm:px-4 shrink-0 z-30 relative shadow-sm">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="lg:hidden text-primary-foreground/80 hover:text-primary-foreground transition-colors p-1 rounded-md hover:bg-primary-foreground/10"
             aria-label="Toggle menu"
           >
             <div className="relative w-5 h-5">
-              <Menu size={20} className={cn("absolute inset-0 transition-all duration-200", sidebarOpen ? "opacity-0 rotate-90" : "opacity-100 rotate-0")} />
-              <X size={20} className={cn("absolute inset-0 transition-all duration-200", sidebarOpen ? "opacity-100 rotate-0" : "opacity-0 -rotate-90")} />
+              <Menu size={18} className={cn("absolute inset-0 transition-all duration-200", sidebarOpen ? "opacity-0 rotate-90" : "opacity-100 rotate-0")} />
+              <X size={18} className={cn("absolute inset-0 transition-all duration-200", sidebarOpen ? "opacity-100 rotate-0" : "opacity-0 -rotate-90")} />
             </div>
           </button>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             {logoUrl ? (
-              <img src={logoUrl} alt="Logo" className="w-8 h-8 rounded-lg object-contain bg-primary-foreground/15 p-0.5" />
+              <img src={logoUrl} alt="Logo" className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg object-contain bg-primary-foreground/15 p-0.5" />
             ) : (
-              <div className="w-8 h-8 rounded-lg bg-primary-foreground/15 flex items-center justify-center">
-                <Shield size={18} className="text-primary-foreground" />
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-primary-foreground/15 flex items-center justify-center">
+                <Shield size={16} className="text-primary-foreground sm:hidden" />
+                <Shield size={18} className="text-primary-foreground hidden sm:block" />
               </div>
             )}
             <div className="hidden sm:block">
@@ -187,7 +188,7 @@ export default function Layout() {
 
         {/* Sidebar */}
         <aside className={cn(
-          'fixed lg:static inset-y-0 left-0 top-14 z-20 w-56 bg-sidebar flex flex-col transition-transform duration-250 ease-out will-change-transform',
+          'fixed lg:static inset-y-0 left-0 top-11 sm:top-14 z-20 w-56 bg-sidebar flex flex-col transition-transform duration-250 ease-out will-change-transform',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}>
           <nav className="flex-1 py-3 px-2 overflow-y-auto space-y-0.5">
