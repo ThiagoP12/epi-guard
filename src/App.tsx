@@ -17,6 +17,7 @@ import Relatorios from "./pages/Relatorios";
 import Configuracoes from "./pages/Configuracoes";
 import Revendas from "./pages/Revendas";
 import Solicitacoes from "./pages/Solicitacoes";
+import Auditoria from "./pages/Auditoria";
 import PortalColaborador from "./pages/PortalColaborador";
 import NotFound from "./pages/NotFound";
 
@@ -57,6 +58,7 @@ function ProtectedRoutes() {
           <Route path="/configuracoes" element={<Configuracoes />} />
           <Route path="/revendas" element={<Revendas />} />
           <Route path="/solicitacoes" element={<Solicitacoes />} />
+          <Route path="/auditoria" element={<Auditoria />} />
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>
