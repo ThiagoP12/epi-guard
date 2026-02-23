@@ -168,37 +168,46 @@ export default function Layout() {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          {/* Theme Toggle */}
           <button
             onClick={toggleTheme}
-            className="text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-all duration-150 p-1.5 rounded-md"
+            className="text-primary-foreground/70 hover:text-primary-foreground bg-primary-foreground/5 hover:bg-primary-foreground/15 transition-all duration-200 p-2 rounded-lg"
             aria-label="Alternar tema"
+            title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
           >
             <div className="relative w-4 h-4">
               <Sun size={16} className={cn("absolute inset-0 transition-all duration-300", theme === 'dark' ? "opacity-0 rotate-90 scale-0" : "opacity-100 rotate-0 scale-100")} />
               <Moon size={16} className={cn("absolute inset-0 transition-all duration-300", theme === 'dark' ? "opacity-100 rotate-0 scale-100" : "opacity-0 -rotate-90 scale-0")} />
             </div>
           </button>
-          <div className="flex items-center gap-2">
+
+          {/* Divider */}
+          <div className="w-px h-7 bg-primary-foreground/10 mx-1 hidden sm:block" />
+
+          {/* User Info */}
+          <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg bg-primary-foreground/5 hover:bg-primary-foreground/10 transition-colors">
             {profile?.avatar_url ? (
-              <img src={profile.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover border border-primary-foreground/20" />
+              <img src={profile.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover ring-2 ring-primary-foreground/20" />
             ) : (
-              <div className="w-7 h-7 rounded-full bg-primary-foreground/15 flex items-center justify-center text-primary-foreground text-[10px] font-bold">
+              <div className="w-8 h-8 rounded-full bg-primary-foreground/20 flex items-center justify-center text-primary-foreground text-xs font-bold">
                 {(profile?.nome || 'U').charAt(0).toUpperCase()}
               </div>
             )}
             <div className="text-right hidden sm:block">
-              <p className="text-primary-foreground/90 text-sm font-medium leading-none">{profile?.nome || 'Usuário'}</p>
-              <p className="text-primary-foreground/50 text-[10px] capitalize mt-0.5">{role || ''}</p>
+              <p className="text-primary-foreground text-sm font-semibold leading-tight">{profile?.nome || 'Usuário'}</p>
+              <p className="text-primary-foreground/50 text-[10px] capitalize leading-tight">{role || ''}</p>
             </div>
           </div>
-          <div className="w-px h-6 bg-primary-foreground/15 hidden sm:block" />
+
+          {/* Logout */}
           <button
             onClick={signOut}
-            className="text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-all duration-150 flex items-center gap-1.5 text-sm px-2 py-1.5 rounded-md"
+            className="text-primary-foreground/50 hover:text-destructive-foreground hover:bg-destructive/20 transition-all duration-200 flex items-center gap-1.5 text-xs px-2.5 py-2 rounded-lg ml-0.5"
+            title="Sair do sistema"
           >
-            <LogOut size={15} />
-            <span className="hidden sm:inline text-xs">Sair</span>
+            <LogOut size={16} />
+            <span className="hidden sm:inline font-medium">Sair</span>
           </button>
         </div>
       </header>
