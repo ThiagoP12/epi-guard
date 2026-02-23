@@ -20,6 +20,7 @@ export type Database = {
           created_at: string
           data_admissao: string
           email: string | null
+          empresa_id: string | null
           funcao: string
           id: string
           matricula: string
@@ -35,6 +36,7 @@ export type Database = {
           created_at?: string
           data_admissao?: string
           email?: string | null
+          empresa_id?: string | null
           funcao: string
           id?: string
           matricula: string
@@ -50,6 +52,7 @@ export type Database = {
           created_at?: string
           data_admissao?: string
           email?: string | null
+          empresa_id?: string | null
           funcao?: string
           id?: string
           matricula?: string
@@ -60,7 +63,15 @@ export type Database = {
           tamanho_uniforme?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "colaboradores_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       configuracoes: {
         Row: {
@@ -85,6 +96,53 @@ export type Database = {
           valor?: string
         }
         Relationships: []
+      }
+      empresas: {
+        Row: {
+          ativo: boolean
+          cnpj: string | null
+          created_at: string
+          email: string | null
+          endereco: string | null
+          id: string
+          matriz_id: string | null
+          nome: string
+          telefone: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          cnpj?: string | null
+          created_at?: string
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          matriz_id?: string | null
+          nome: string
+          telefone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          cnpj?: string | null
+          created_at?: string
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          matriz_id?: string | null
+          nome?: string
+          telefone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "empresas_matriz_id_fkey"
+            columns: ["matriz_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       entrega_epi_itens: {
         Row: {
@@ -147,6 +205,7 @@ export type Database = {
           email_enviado: boolean | null
           email_enviado_em: string | null
           email_erro: string | null
+          empresa_id: string | null
           id: string
           ip_origem: string | null
           motivo: Database["public"]["Enums"]["motivo_entrega"]
@@ -166,6 +225,7 @@ export type Database = {
           email_enviado?: boolean | null
           email_enviado_em?: string | null
           email_erro?: string | null
+          empresa_id?: string | null
           id?: string
           ip_origem?: string | null
           motivo: Database["public"]["Enums"]["motivo_entrega"]
@@ -185,6 +245,7 @@ export type Database = {
           email_enviado?: boolean | null
           email_enviado_em?: string | null
           email_erro?: string | null
+          empresa_id?: string | null
           id?: string
           ip_origem?: string | null
           motivo?: Database["public"]["Enums"]["motivo_entrega"]
@@ -203,6 +264,13 @@ export type Database = {
             referencedRelation: "colaboradores"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "entregas_epi_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
         ]
       }
       movimentacoes_estoque: {
@@ -211,6 +279,7 @@ export type Database = {
           colaborador_id: string | null
           created_at: string
           data_hora: string
+          empresa_id: string | null
           entrega_id: string | null
           id: string
           motivo: string | null
@@ -226,6 +295,7 @@ export type Database = {
           colaborador_id?: string | null
           created_at?: string
           data_hora?: string
+          empresa_id?: string | null
           entrega_id?: string | null
           id?: string
           motivo?: string | null
@@ -241,6 +311,7 @@ export type Database = {
           colaborador_id?: string | null
           created_at?: string
           data_hora?: string
+          empresa_id?: string | null
           entrega_id?: string | null
           id?: string
           motivo?: string | null
@@ -260,6 +331,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "movimentacoes_estoque_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "movimentacoes_estoque_produto_id_fkey"
             columns: ["produto_id"]
             isOneToOne: false
@@ -276,6 +354,7 @@ export type Database = {
           created_at: string
           custo_unitario: number | null
           data_validade: string | null
+          empresa_id: string | null
           estoque_minimo: number
           fornecedor: string | null
           id: string
@@ -293,6 +372,7 @@ export type Database = {
           created_at?: string
           custo_unitario?: number | null
           data_validade?: string | null
+          empresa_id?: string | null
           estoque_minimo?: number
           fornecedor?: string | null
           id?: string
@@ -310,6 +390,7 @@ export type Database = {
           created_at?: string
           custo_unitario?: number | null
           data_validade?: string | null
+          empresa_id?: string | null
           estoque_minimo?: number
           fornecedor?: string | null
           id?: string
@@ -320,7 +401,15 @@ export type Database = {
           tipo?: Database["public"]["Enums"]["tipo_produto"]
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "produtos_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -348,6 +437,32 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      user_empresas: {
+        Row: {
+          empresa_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          empresa_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          empresa_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_empresas_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -380,10 +495,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      user_has_empresa_access: {
+        Args: { _empresa_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       ajuste_tipo: "AUMENTO" | "REDUCAO"
-      app_role: "admin" | "almoxarifado" | "gestor"
+      app_role: "admin" | "almoxarifado" | "gestor" | "supervisor" | "tecnico"
       motivo_entrega:
         | "Primeira entrega"
         | "Troca por desgaste"
@@ -520,7 +639,7 @@ export const Constants = {
   public: {
     Enums: {
       ajuste_tipo: ["AUMENTO", "REDUCAO"],
-      app_role: ["admin", "almoxarifado", "gestor"],
+      app_role: ["admin", "almoxarifado", "gestor", "supervisor", "tecnico"],
       motivo_entrega: [
         "Primeira entrega",
         "Troca por desgaste",
