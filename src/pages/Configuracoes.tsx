@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Save, Upload, X, ImageIcon, Camera, User, Building2 } from 'lucide-react';
+import { Save, Upload, X, ImageIcon, Camera, User, Building2, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import SetoresManager from '@/components/SetoresManager';
 import FuncoesManager from '@/components/FuncoesManager';
+import ColaboradoresManager from '@/components/ColaboradoresManager';
 import Revendas from '@/pages/Revendas';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -182,6 +183,9 @@ export default function Configuracoes() {
       <Tabs defaultValue="geral" className="max-w-3xl">
         <TabsList className="mb-4">
           <TabsTrigger value="geral" className="text-xs">Geral</TabsTrigger>
+          <TabsTrigger value="colaboradores" className="text-xs gap-1">
+            <Users size={13} /> Colaborador
+          </TabsTrigger>
           <TabsTrigger value="revendas" className="text-xs gap-1">
             <Building2 size={13} /> Revendas
           </TabsTrigger>
@@ -292,6 +296,10 @@ export default function Configuracoes() {
           <Button onClick={handleSave} disabled={saving}>
             <Save size={16} className="mr-2" /> {saving ? 'Salvando...' : 'Salvar Configurações'}
           </Button>
+        </TabsContent>
+
+        <TabsContent value="colaboradores">
+          <ColaboradoresManager />
         </TabsContent>
 
         <TabsContent value="revendas">
