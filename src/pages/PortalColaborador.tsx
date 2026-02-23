@@ -10,10 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import SignatureCanvas from '@/components/SignatureCanvas';
 import SelfieCapture from '@/components/SelfieCapture';
+import ComprovanteSolicitacao from '@/components/ComprovanteSolicitacao';
 import {
   LogOut, Package, History, ClipboardCheck, CheckCircle, Clock, XCircle,
   Loader2, Shield, FileText, User, Building2, Hash, MapPin,
-  Camera, PenTool, Send, AlertTriangle, HardHat
+  Camera, PenTool, Send, AlertTriangle, HardHat, Eye
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -27,6 +28,9 @@ interface Produto { id: string; nome: string; ca: string | null; tipo: string; s
 interface Solicitacao {
   id: string; produto_id: string; quantidade: number; motivo: string; observacao: string | null;
   status: string; created_at: string; motivo_rejeicao: string | null;
+  aprovado_em?: string | null;
+  assinatura_base64?: string | null;
+  selfie_base64?: string | null;
   produto?: { nome: string; ca: string | null };
 }
 interface EntregaItem { nome_snapshot: string; ca_snapshot: string | null; quantidade: number; }
@@ -54,6 +58,8 @@ export default function PortalColaborador() {
   const [selfie, setSelfie] = useState<string | null>(null);
   const [declaracao, setDeclaracao] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [comprovanteOpen, setComprovanteOpen] = useState(false);
+  const [comprovanteSolicitacao, setComprovanteSolicitacao] = useState<Solicitacao | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -116,7 +122,7 @@ export default function PortalColaborador() {
   const loadSolicitacoes = async (colabId: string) => {
     const { data } = await supabase
       .from('solicitacoes_epi')
-      .select('id, produto_id, quantidade, motivo, observacao, status, created_at, motivo_rejeicao')
+      .select('id, produto_id, quantidade, motivo, observacao, status, created_at, motivo_rejeicao, aprovado_em, assinatura_base64, selfie_base64')
       .eq('colaborador_id', colabId)
       .order('created_at', { ascending: false });
 
@@ -512,6 +518,16 @@ export default function PortalColaborador() {
                         <span className="text-[10px] text-muted-foreground">
                           {new Date(s.created_at).toLocaleString('pt-BR')}
                         </span>
+                        {(s.status === 'aprovado' || s.status === 'entregue') && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-[11px] gap-1 px-2"
+                            onClick={() => { setComprovanteSolicitacao(s); setComprovanteOpen(true); }}
+                          >
+                            <Eye size={12} /> Comprovante
+                          </Button>
+                        )}
                       </div>
 
                       {s.motivo_rejeicao && (
@@ -599,6 +615,32 @@ export default function PortalColaborador() {
           )}
         </div>
       </main>
+
+      <ComprovanteSolicitacao
+        open={comprovanteOpen}
+        onClose={() => { setComprovanteOpen(false); setComprovanteSolicitacao(null); }}
+        data={comprovanteSolicitacao && colaborador ? {
+          colaborador: {
+            nome: colaborador.nome,
+            matricula: colaborador.matricula,
+            setor: colaborador.setor,
+            funcao: colaborador.funcao,
+            empresa: colaborador.empresa?.nome,
+          },
+          solicitacao: {
+            id: comprovanteSolicitacao.id,
+            produto_nome: comprovanteSolicitacao.produto?.nome || 'Produto',
+            produto_ca: comprovanteSolicitacao.produto?.ca || null,
+            quantidade: comprovanteSolicitacao.quantidade,
+            motivo: comprovanteSolicitacao.motivo,
+            status: comprovanteSolicitacao.status,
+            created_at: comprovanteSolicitacao.created_at,
+            aprovado_em: comprovanteSolicitacao.aprovado_em,
+            assinatura_base64: comprovanteSolicitacao.assinatura_base64,
+            selfie_base64: comprovanteSolicitacao.selfie_base64,
+          },
+        } : null}
+      />
     </div>
   );
 }
