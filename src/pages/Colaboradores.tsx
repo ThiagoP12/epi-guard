@@ -53,6 +53,9 @@ export default function Colaboradores() {
   const [funcaoFilter, setFuncaoFilter] = useState('todos');
   const [statusFilter, setStatusFilter] = useState('ativos');
 
+  // Setores from DB
+  const [setoresCadastrados, setSetoresCadastrados] = useState<{ id: string; nome: string }[]>([]);
+
   // CRUD modal
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -126,6 +129,17 @@ export default function Colaboradores() {
   };
 
   useEffect(() => { load(); }, [selectedEmpresa]);
+
+  // Load setores from DB
+  useEffect(() => {
+    const loadSetores = async () => {
+      let q = supabase.from('setores').select('id, nome').eq('ativo', true).order('nome');
+      if (selectedEmpresa) q = q.eq('empresa_id', selectedEmpresa.id);
+      const { data } = await q;
+      if (data) setSetoresCadastrados(data);
+    };
+    loadSetores();
+  }, [selectedEmpresa]);
 
   // Unique setores and funções for filters
   const setores = useMemo(() => [...new Set(colaboradores.map(c => c.setor))].sort(), [colaboradores]);
@@ -615,7 +629,14 @@ export default function Colaboradores() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Setor *</Label>
-                <Input value={form.setor} onChange={(e) => setForm({ ...form, setor: e.target.value })} className="mt-1 h-9" placeholder="Produção" />
+                <Select value={form.setor} onValueChange={(v) => setForm({ ...form, setor: v })}>
+                  <SelectTrigger className="mt-1 h-9"><SelectValue placeholder="Selecionar setor..." /></SelectTrigger>
+                  <SelectContent>
+                    {setoresCadastrados.map(s => (
+                      <SelectItem key={s.id} value={s.nome}>{s.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label className="text-xs">Função *</Label>
