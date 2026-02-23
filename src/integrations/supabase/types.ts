@@ -216,7 +216,7 @@ export type Database = {
           quantidade: number
           referencia_nf: string | null
           tipo_movimentacao: Database["public"]["Enums"]["tipo_movimentacao"]
-          usuario_id: string
+          usuario_id: string | null
         }
         Insert: {
           ajuste_tipo?: Database["public"]["Enums"]["ajuste_tipo"] | null
@@ -231,7 +231,7 @@ export type Database = {
           quantidade: number
           referencia_nf?: string | null
           tipo_movimentacao: Database["public"]["Enums"]["tipo_movimentacao"]
-          usuario_id: string
+          usuario_id?: string | null
         }
         Update: {
           ajuste_tipo?: Database["public"]["Enums"]["ajuste_tipo"] | null
@@ -246,7 +246,7 @@ export type Database = {
           quantidade?: number
           referencia_nf?: string | null
           tipo_movimentacao?: Database["public"]["Enums"]["tipo_movimentacao"]
-          usuario_id?: string
+          usuario_id?: string | null
         }
         Relationships: [
           {
