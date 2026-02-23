@@ -294,7 +294,7 @@ export default function PortalColaborador() {
           {/* Info pills */}
           <div className="flex flex-wrap gap-2">
             <InfoPill icon={Hash} label="Matrícula" value={colaborador.matricula} />
-            <InfoPill icon={Shield} label="CPF" value={colaborador.cpf ? formatCpf(colaborador.cpf) : '—'} mono />
+            <InfoPill icon={Shield} label="Versão" value="1.0.0" />
             <InfoPill icon={MapPin} label="Setor" value={colaborador.setor} />
             <InfoPill icon={Building2} label="Revenda" value={colaborador.empresa?.nome || '—'} />
           </div>
