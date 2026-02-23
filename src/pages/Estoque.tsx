@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Filter, Plus, Minus, PackageOpen, Package, AlertTriangle, DollarSign, History, Settings2, ArrowUpDown, Eye, Users } from 'lucide-react';
+import { Search, Filter, Plus, Minus, PackageOpen, Package, AlertTriangle, DollarSign, History, Settings2, ArrowUpDown, Eye, Users, Download } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -299,6 +299,29 @@ export default function Estoque() {
   const formatCurrency = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const formatDate = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+  const handleExportCSV = () => {
+    const headers = ['Código', 'Produto', 'Tipo', 'CA', 'Tamanho', 'Marca', 'Fornecedor', 'Saldo', 'Estoque Mínimo', 'Custo Unitário', 'Validade', 'Localização', 'Status'];
+    const rows = filtered.map(p => {
+      const st = getStatus(p);
+      return [
+        p.codigo_interno, p.nome, p.tipo, p.ca || '', p.tamanho || '', p.marca || '',
+        p.fornecedor || '', p.saldo, p.estoque_minimo, p.custo_unitario,
+        p.data_validade ? new Date(p.data_validade).toLocaleDateString('pt-BR') : '',
+        p.localizacao_fisica || '', st.label,
+      ];
+    });
+    const csvContent = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\n');
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `estoque_${selectedEmpresa?.nome || 'geral'}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: 'Exportado', description: `${filtered.length} itens exportados em CSV.` });
+  };
+
   const movTypeLabel = (m: Movimentacao) => {
     if (m.tipo_movimentacao === 'AJUSTE') return m.ajuste_tipo === 'AUMENTO' ? 'Ajuste +' : 'Ajuste −';
     return m.tipo_movimentacao === 'ENTRADA' ? 'Entrada' : 'Saída';
@@ -318,9 +341,14 @@ export default function Estoque() {
             {selectedEmpresa ? selectedEmpresa.nome : 'Todas as empresas'} • {stats.total} produtos cadastrados
           </p>
         </div>
-        <Button size="sm" onClick={openAddProduct} className="gap-1.5">
-          <Plus size={15} /> Novo Produto
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={handleExportCSV} disabled={loading || filtered.length === 0} className="gap-1.5">
+            <Download size={15} /> Exportar CSV
+          </Button>
+          <Button size="sm" onClick={openAddProduct} className="gap-1.5">
+            <Plus size={15} /> Novo Produto
+          </Button>
+        </div>
       </div>
 
       {/* KPI Cards */}
