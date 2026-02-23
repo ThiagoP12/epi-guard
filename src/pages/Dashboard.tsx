@@ -1,11 +1,12 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, ClipboardCheck, Users, AlertTriangle, TrendingUp, Clock, ArrowRight, Calendar, Shield, Award, Medal, FileDown, Loader2, Wallet } from 'lucide-react';
+import { Package, ClipboardCheck, Users, AlertTriangle, TrendingUp, Clock, ArrowRight, Shield, Award, Medal, FileDown, Loader2, Wallet, BarChart3, Activity, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { StatusBadge } from '@/components/StatusBadge';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend, Area, AreaChart } from 'recharts';
 import { useEmpresa } from '@/contexts/EmpresaContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface RecentActivity {
   id: string;
@@ -47,6 +48,7 @@ const CC_COLORS = [
 export default function Dashboard() {
   const navigate = useNavigate();
   const { selectedEmpresa } = useEmpresa();
+  const { profile } = useAuth();
   const [stats, setStats] = useState({ estoqueBaixo: 0, entregasMes: 0, totalColabs: 0, totalProdutos: 0, totalEPIs: 0, totalEPCs: 0 });
   const [activities, setActivities] = useState<RecentActivity[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -80,7 +82,6 @@ export default function Dashboard() {
       const pdfW = pdf.internal.pageSize.getWidth();
       const pdfH = pdf.internal.pageSize.getHeight();
 
-      // Header
       pdf.setFontSize(16);
       pdf.setFont('helvetica', 'bold');
       pdf.text('Relatório Gerencial — Dashboard', 14, 14);
@@ -91,7 +92,6 @@ export default function Dashboard() {
       pdf.text(`${empresa} • Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, 20);
       pdf.setTextColor(0);
 
-      // Image
       const marginTop = 26;
       const availH = pdfH - marginTop - 8;
       const imgRatio = canvas.width / canvas.height;
@@ -106,12 +106,11 @@ export default function Dashboard() {
       }
       pdf.addImage(imgData, 'PNG', 14, marginTop, imgW, imgH);
 
-      // Footer
       pdf.setFontSize(7);
       pdf.setTextColor(160);
       pdf.text('Sistema de Gestão EPI & EPC • Documento gerado automaticamente', 14, pdfH - 4);
 
-      pdf.save(`Dashboard_${empresa.replace(/\\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`);
+      pdf.save(`Dashboard_${empresa.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`);
     } catch (err) {
       console.error('PDF export error:', err);
     }
@@ -122,7 +121,6 @@ export default function Dashboard() {
     const loadAll = async () => {
       setLoading(true);
 
-      // --- Stats ---
       let prodQuery = supabase.from('produtos').select('id, nome, estoque_minimo, data_validade, ca, tipo').eq('ativo', true);
       if (selectedEmpresa) prodQuery = prodQuery.eq('empresa_id', selectedEmpresa.id);
       const { data: produtos } = await prodQuery;
@@ -177,7 +175,7 @@ export default function Dashboard() {
       });
       setAlerts(alertsList);
 
-      // --- Chart: entregas by period ---
+      // Chart data
       const days: ChartData[] = [];
       for (let i = chartDays - 1; i >= 0; i--) {
         const d = new Date();
@@ -195,7 +193,7 @@ export default function Dashboard() {
       }
       setChartData(days);
 
-      // --- Top 5 Colaboradores que mais recebem (filtered by period) ---
+      // Rankings
       const rankingStart = new Date();
       rankingStart.setDate(rankingStart.getDate() - rankingDays);
       const rankingStartISO = rankingStart.toISOString();
@@ -209,7 +207,6 @@ export default function Dashboard() {
       const { data: entregasData } = await entregasItensQuery;
 
       if (entregasData) {
-        // Aggregate by colaborador
         const colabMap = new Map<string, { nome: string; total: number }>();
         for (const e of entregasData as any[]) {
           const nome = e.colaboradores?.nome || 'Desconhecido';
@@ -227,25 +224,15 @@ export default function Dashboard() {
           .slice(0, 5)
           .map(c => ({ nome: c.nome, quantidade: c.total }));
         setTopColaboradores(sorted);
-
-        // Aggregate by produto for EPI and EPC
-        const prodMap = new Map<string, { nome: string; tipo: string; total: number }>();
-        for (const e of entregasData as any[]) {
-          for (const item of (e.entrega_epi_itens || []) as any[]) {
-            // We need produto info - use itens with nome_snapshot
-          }
-        }
       }
 
-      // --- Top 5 EPIs and EPCs (from entrega_epi_itens joined with produtos) ---
+      // Top EPIs and EPCs
       let itensQuery = supabase.from('entrega_epi_itens')
         .select('entrega_id, nome_snapshot, quantidade, produto_id, produtos(tipo)')
         .limit(1000);
-      // Filter by empresa through entregas
       const { data: allItens } = await itensQuery;
 
       if (allItens) {
-        // Filter by empresa and period through entregas
         let filteredItens = allItens as any[];
         let entregaFilterQuery = supabase.from('entregas_epi')
           .select('id')
@@ -281,7 +268,7 @@ export default function Dashboard() {
         );
       }
 
-      // --- Recent activities ---
+      // Recent activities
       let recentEntregaQuery = supabase.from('entregas_epi')
         .select('id, data_hora, colaborador_id, colaboradores(nome)')
         .order('data_hora', { ascending: false }).limit(5);
@@ -314,7 +301,7 @@ export default function Dashboard() {
       acts.sort((a, b) => b.time.localeCompare(a.time));
       setActivities(acts.slice(0, 8));
 
-      // --- Centro de Custo report ---
+      // Centro de Custo
       let ccQuery = supabase.from('colaboradores').select('centro_custo').eq('ativo', true);
       if (selectedEmpresa) ccQuery = ccQuery.eq('empresa_id', selectedEmpresa.id);
       const { data: ccData } = await ccQuery;
@@ -335,6 +322,13 @@ export default function Dashboard() {
     };
     loadAll();
   }, [selectedEmpresa, rankingDays, chartDays]);
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Bom dia';
+    if (hour < 18) return 'Boa tarde';
+    return 'Boa noite';
+  };
 
   const cards = [
     {
@@ -380,7 +374,7 @@ export default function Dashboard() {
     {
       title: 'Alertas',
       value: alerts.length,
-      subtitle: alerts.length > 0 ? 'itens requerem atenção' : 'tudo em dia',
+      subtitle: alerts.length > 0 ? 'requerem atenção' : 'tudo em dia',
       severity: alerts.length > 0 ? 'warning' as const : 'ok' as const,
       icon: AlertTriangle,
       onClick: () => document.getElementById('alerts-section')?.scrollIntoView({ behavior: 'smooth' }),
@@ -408,10 +402,10 @@ export default function Dashboard() {
     emptyText: string;
     accentColor: string;
   }) => (
-    <div className="bg-card rounded-lg border p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <div className={`p-1.5 rounded-md ${accentColor}`}>
-          <Icon size={16} className="text-primary-foreground" />
+    <div className="bg-card rounded-xl border shadow-sm p-5 hover:shadow-md transition-shadow duration-200">
+      <div className="flex items-center gap-2.5 mb-4">
+        <div className={`p-2 rounded-lg ${accentColor}`}>
+          <Icon size={15} className="text-primary-foreground" />
         </div>
         <h2 className="text-sm font-semibold text-foreground">{title}</h2>
       </div>
@@ -426,16 +420,17 @@ export default function Dashboard() {
           ))}
         </div>
       ) : items.length === 0 ? (
-        <p className="text-xs text-muted-foreground text-center py-6">{emptyText}</p>
+        <p className="text-xs text-muted-foreground text-center py-8">{emptyText}</p>
       ) : (
         <div className="space-y-1">
           {items.map((item, idx) => {
             const maxQty = items[0]?.quantidade || 1;
             const pct = (item.quantidade / maxQty) * 100;
             return (
-              <div key={idx} className="group relative flex items-center gap-3 py-2 px-2 rounded-md hover:bg-muted/40 transition-colors">
+              <div key={idx} className="group relative flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors">
+                <div className="absolute inset-0 rounded-lg bg-primary/[0.04] transition-all duration-300" style={{ width: `${pct}%` }} />
                 <div className="relative z-10 flex items-center gap-3 flex-1 min-w-0">
-                  <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center shrink-0">
+                  <div className="w-7 h-7 rounded-full bg-muted/80 flex items-center justify-center shrink-0">
                     {idx < 3 ? (
                       <Medal size={14} className={medalColors[idx]} />
                     ) : (
@@ -445,11 +440,6 @@ export default function Dashboard() {
                   <span className="text-xs font-medium text-foreground truncate flex-1">{item.nome}</span>
                   <span className="text-xs font-bold tabular-nums text-foreground shrink-0">{item.quantidade}</span>
                 </div>
-                {/* Progress bar background */}
-                <div
-                  className="absolute inset-0 rounded-md bg-primary/5 transition-all duration-300"
-                  style={{ width: `${pct}%` }}
-                />
               </div>
             );
           })}
@@ -460,235 +450,328 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Dashboard</h1>
-          {selectedEmpresa && (
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Dados de <span className="font-medium text-foreground">{selectedEmpresa.nome}</span>
-            </p>
-          )}
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">
+            {getGreeting()}{profile?.nome ? `, ${profile.nome.split(' ')[0]}` : ''}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {selectedEmpresa ? (
+              <>Visualizando dados de <span className="font-medium text-foreground">{selectedEmpresa.nome}</span></>
+            ) : (
+              <>Aqui está o resumo geral do seu sistema</>
+            )}
+          </p>
         </div>
-        <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={handleExportPdf} disabled={exporting || loading}>
+        <Button variant="outline" size="sm" className="gap-2 text-xs rounded-lg shadow-sm" onClick={handleExportPdf} disabled={exporting || loading}>
           {exporting ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />}
           Exportar PDF
         </Button>
       </div>
 
-      <div ref={dashboardRef}>
+      <div ref={dashboardRef} className="space-y-6">
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        {cards.map((card) => {
-          const style = severityStyles[card.severity];
-          return (
-            <button
-              key={card.title}
-              onClick={card.onClick}
-              className="card-interactive bg-card rounded-lg border border-l-4 p-4 text-left w-full transition-all"
-              style={{ borderLeftColor: `hsl(var(--status-${card.severity === 'ok' ? 'ok' : card.severity}))` }}
-            >
-              <div className="flex items-start justify-between mb-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{card.title}</p>
-                <div className={`p-1.5 rounded-md ${style.bg}`}>
-                  <card.icon size={16} className={style.text} />
+        {/* Alerts Banner */}
+        {alerts.length > 0 && (
+          <button
+            onClick={() => document.getElementById('alerts-section')?.scrollIntoView({ behavior: 'smooth' })}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-status-warning-bg border border-status-warning/20 hover:border-status-warning/40 transition-colors group"
+          >
+            <div className="p-1.5 rounded-lg bg-status-warning/10">
+              <AlertTriangle size={16} className="text-status-warning" />
+            </div>
+            <span className="text-sm font-medium text-foreground flex-1 text-left">
+              {alerts.length} {alerts.length === 1 ? 'alerta requer' : 'alertas requerem'} sua atenção
+            </span>
+            <ChevronRight size={16} className="text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+          </button>
+        )}
+
+        {/* KPI Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+          {cards.map((card, index) => {
+            const style = severityStyles[card.severity];
+            return (
+              <button
+                key={card.title}
+                onClick={card.onClick}
+                className="group bg-card rounded-xl border shadow-sm p-4 text-left w-full transition-all hover:shadow-md hover:-translate-y-0.5 duration-200 relative overflow-hidden"
+              >
+                {/* Colored top accent */}
+                <div
+                  className="absolute top-0 left-0 right-0 h-1 rounded-t-xl"
+                  style={{ backgroundColor: `hsl(var(--status-${card.severity === 'ok' ? 'ok' : card.severity}))` }}
+                />
+                <div className="flex items-start justify-between mb-3 pt-1">
+                  <div className={`p-2 rounded-lg ${style.bg}`}>
+                    <card.icon size={16} className={style.text} />
+                  </div>
+                </div>
+                <p className="text-2xl font-bold text-foreground tabular-nums">{loading ? '—' : card.value}</p>
+                <p className="text-xs font-medium text-muted-foreground mt-1 uppercase tracking-wide">{card.title}</p>
+                <p className="text-[10px] text-muted-foreground/70 mt-0.5 capitalize">{card.subtitle}</p>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Chart + Activities Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          {/* Chart */}
+          <div className="lg:col-span-3 bg-card rounded-xl border shadow-sm p-6">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <BarChart3 size={16} className="text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">Entregas — Últimos {chartDays} dias</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">Quantidade de entregas de EPI por dia</p>
                 </div>
               </div>
-              <p className="text-2xl font-bold text-foreground">{loading ? '—' : card.value}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5 capitalize">{card.subtitle}</p>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Chart + Activities Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        {/* Chart */}
-        <div className="lg:col-span-3 bg-card rounded-lg border p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-sm font-semibold text-foreground">Entregas — Últimos {chartDays} dias</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">Quantidade de entregas de EPI por dia</p>
+              <div className="flex gap-1 bg-muted/50 p-0.5 rounded-lg">
+                {[7, 30, 90].map(d => (
+                  <Button
+                    key={d}
+                    variant={chartDays === d ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-7 text-[11px] px-2.5 rounded-md"
+                    onClick={() => setChartDays(d)}
+                  >
+                    {d}d
+                  </Button>
+                ))}
+              </div>
             </div>
-            <div className="flex gap-1">
-              {[7, 30, 90].map(d => (
-                <Button key={d} variant={chartDays === d ? 'default' : 'outline'} size="sm" className="h-7 text-[11px] px-2.5" onClick={() => setChartDays(d)}>
-                  {d}d
+            <div className="h-52">
+              {loading ? (
+                <div className="h-full flex items-center justify-center">
+                  <Loader2 size={20} className="animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData}>
+                    <defs>
+                      <linearGradient id="fillEntregas" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.2} />
+                        <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                    <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={24} />
+                    <Tooltip
+                      contentStyle={{
+                        background: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: 10,
+                        fontSize: 12,
+                        boxShadow: '0 4px 12px -2px hsl(var(--foreground) / 0.08)',
+                      }}
+                      labelStyle={{ fontWeight: 600, marginBottom: 4 }}
+                      formatter={(value: number) => [value, 'Entregas']}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="entregas"
+                      stroke="hsl(var(--primary))"
+                      strokeWidth={2.5}
+                      fill="url(#fillEntregas)"
+                      dot={{ fill: 'hsl(var(--primary))', r: 3, strokeWidth: 0 }}
+                      activeDot={{ r: 5, strokeWidth: 2, stroke: 'hsl(var(--card))' }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+
+          {/* Recent Activities */}
+          <div className="lg:col-span-2 bg-card rounded-xl border shadow-sm p-6">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-muted">
+                  <Activity size={16} className="text-muted-foreground" />
+                </div>
+                <h2 className="text-sm font-semibold text-foreground">Atividades Recentes</h2>
+              </div>
+              <Clock size={14} className="text-muted-foreground" />
+            </div>
+            <div className="space-y-0.5 max-h-56 overflow-y-auto pr-1">
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 size={20} className="animate-spin text-muted-foreground" />
+                </div>
+              ) : activities.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-8 text-center">Nenhuma atividade ainda.</p>
+              ) : (
+                activities.map((a) => (
+                  <div key={a.id} className="flex items-center gap-3 py-2.5 px-2.5 rounded-lg hover:bg-muted/40 transition-colors">
+                    <div className="p-1.5 rounded-md bg-muted/60 shrink-0">{activityIcons[a.type]}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-foreground truncate">{a.description}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{a.time}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Rankings Row */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <TrendingUp size={16} className="text-primary" />
+              </div>
+              <h2 className="text-sm font-semibold text-foreground">Rankings de Entregas</h2>
+            </div>
+            <div className="flex gap-1 bg-muted/50 p-0.5 rounded-lg">
+              {[30, 60, 90].map(d => (
+                <Button
+                  key={d}
+                  variant={rankingDays === d ? 'default' : 'ghost'}
+                  size="sm"
+                  className="h-7 text-[11px] px-2.5 rounded-md"
+                  onClick={() => setRankingDays(d)}
+                >
+                  {d} dias
                 </Button>
               ))}
             </div>
           </div>
-          <div className="h-48">
-            {loading ? (
-              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">Carregando...</div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} barSize={28}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                  <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={24} />
-                  <Tooltip
-                    contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
-                    labelStyle={{ fontWeight: 600 }}
-                    formatter={(value: number) => [value, 'Entregas']}
-                  />
-                  <Bar dataKey="entregas" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <RankingCard
+              title="Top 5 Colaboradores"
+              icon={Users}
+              items={topColaboradores}
+              emptyText="Nenhuma entrega registrada ainda."
+              accentColor="bg-primary"
+            />
+            <RankingCard
+              title="Top 5 EPIs"
+              icon={Award}
+              items={topEPIs}
+              emptyText="Nenhum EPI entregue ainda."
+              accentColor="bg-status-ok"
+            />
+            <RankingCard
+              title="Top 5 EPCs"
+              icon={Shield}
+              items={topEPCs}
+              emptyText="Nenhum EPC entregue ainda."
+              accentColor="bg-status-warning"
+            />
           </div>
         </div>
 
-        {/* Recent Activities */}
-        <div className="lg:col-span-2 bg-card rounded-lg border p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-foreground">Atividades Recentes</h2>
-            <Clock size={16} className="text-muted-foreground" />
-          </div>
-          <div className="space-y-1 max-h-52 overflow-y-auto">
-            {loading ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">Carregando...</p>
-            ) : activities.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma atividade ainda.</p>
-            ) : (
-              activities.map((a) => (
-                <div key={a.id} className="flex items-center gap-2.5 py-2 px-2 rounded-md hover:bg-muted/40 transition-colors">
-                  <div className="p-1 rounded bg-muted/60">{activityIcons[a.type]}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-foreground truncate">{a.description}</p>
-                    <p className="text-[10px] text-muted-foreground">{a.time}</p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Rankings Row */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-foreground">Rankings de Entregas</h2>
-          <div className="flex gap-1">
-            {[30, 60, 90].map(d => (
-              <Button key={d} variant={rankingDays === d ? 'default' : 'outline'} size="sm" className="h-7 text-[11px] px-2.5" onClick={() => setRankingDays(d)}>
-                {d} dias
-              </Button>
-            ))}
-          </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <RankingCard
-          title="Top 5 Colaboradores"
-          icon={Users}
-          items={topColaboradores}
-          emptyText="Nenhuma entrega registrada ainda."
-          accentColor="bg-primary"
-        />
-        <RankingCard
-          title="Top 5 EPIs"
-          icon={Award}
-          items={topEPIs}
-          emptyText="Nenhum EPI entregue ainda."
-          accentColor="bg-status-ok"
-        />
-        <RankingCard
-          title="Top 5 EPCs"
-          icon={Shield}
-          items={topEPCs}
-          emptyText="Nenhum EPC entregue ainda."
-          accentColor="bg-status-warning"
-        />
-        </div>
-      </div>
-
-      {/* Centro de Custo Report */}
-      <div className="bg-card rounded-lg border p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="p-1.5 rounded-md bg-primary">
-            <Wallet size={16} className="text-primary-foreground" />
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Colaboradores por Centro de Custo</h2>
-            <p className="text-xs text-muted-foreground">Distribuição dos colaboradores ativos</p>
-          </div>
-        </div>
-        {loading ? (
-          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">Carregando...</div>
-        ) : centroCustoData.length === 0 ? (
-          <p className="text-xs text-muted-foreground text-center py-8">Nenhum colaborador com centro de custo definido.</p>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={centroCustoData}
-                    dataKey="quantidade"
-                    nameKey="nome"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    label={({ nome, quantidade }) => `${quantidade}`}
-                    labelLine={false}
-                  >
-                    {centroCustoData.map((_, idx) => (
-                      <Cell key={idx} fill={CC_COLORS[idx % CC_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
-                    formatter={(value: number, name: string) => [value, name]}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+        {/* Centro de Custo Report */}
+        <div className="bg-card rounded-xl border shadow-sm p-6">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="p-2 rounded-lg bg-primary">
+              <Wallet size={15} className="text-primary-foreground" />
             </div>
-            <div className="space-y-2">
-              {centroCustoData.map((cc, idx) => {
-                const total = centroCustoData.reduce((sum, c) => sum + c.quantidade, 0);
-                const pct = total > 0 ? ((cc.quantidade / total) * 100).toFixed(1) : '0';
-                return (
-                  <div key={cc.nome} className="flex items-center gap-3 py-1.5 px-2 rounded-md hover:bg-muted/40 transition-colors">
-                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: CC_COLORS[idx % CC_COLORS.length] }} />
-                    <span className="text-xs font-medium text-foreground flex-1 truncate">{cc.nome}</span>
-                    <span className="text-xs font-bold tabular-nums text-foreground">{cc.quantidade}</span>
-                    <span className="text-[10px] text-muted-foreground w-10 text-right">{pct}%</span>
-                  </div>
-                );
-              })}
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">Colaboradores por Centro de Custo</h2>
+              <p className="text-xs text-muted-foreground">Distribuição dos colaboradores ativos</p>
+            </div>
+          </div>
+          {loading ? (
+            <div className="h-52 flex items-center justify-center">
+              <Loader2 size={20} className="animate-spin text-muted-foreground" />
+            </div>
+          ) : centroCustoData.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-10">Nenhum colaborador com centro de custo definido.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+              <div className="h-60">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={centroCustoData}
+                      dataKey="quantidade"
+                      nameKey="nome"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={90}
+                      innerRadius={45}
+                      label={({ quantidade }) => `${quantidade}`}
+                      labelLine={false}
+                      strokeWidth={2}
+                      stroke="hsl(var(--card))"
+                    >
+                      {centroCustoData.map((_, idx) => (
+                        <Cell key={idx} fill={CC_COLORS[idx % CC_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        background: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: 10,
+                        fontSize: 12,
+                        boxShadow: '0 4px 12px -2px hsl(var(--foreground) / 0.08)',
+                      }}
+                      formatter={(value: number, name: string) => [value, name]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="space-y-1.5">
+                {centroCustoData.map((cc, idx) => {
+                  const total = centroCustoData.reduce((sum, c) => sum + c.quantidade, 0);
+                  const pct = total > 0 ? ((cc.quantidade / total) * 100).toFixed(1) : '0';
+                  return (
+                    <div key={cc.nome} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-muted/40 transition-colors">
+                      <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: CC_COLORS[idx % CC_COLORS.length] }} />
+                      <span className="text-xs font-medium text-foreground flex-1 truncate">{cc.nome}</span>
+                      <span className="text-xs font-bold tabular-nums text-foreground">{cc.quantidade}</span>
+                      <span className="text-[10px] text-muted-foreground w-12 text-right bg-muted/50 px-1.5 py-0.5 rounded-md">{pct}%</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Alerts Detail */}
+        {alerts.length > 0 && (
+          <div id="alerts-section" className="bg-card rounded-xl border shadow-sm p-6">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-status-warning-bg">
+                  <AlertTriangle size={16} className="text-status-warning" />
+                </div>
+                <h2 className="text-sm font-semibold text-foreground">Alertas e Notificações</h2>
+              </div>
+              <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md font-medium">{alerts.length} {alerts.length === 1 ? 'item' : 'itens'}</span>
+            </div>
+            <div className="space-y-1.5">
+              {alerts.slice(0, 10).map((alert) => (
+                <button
+                  key={alert.id}
+                  onClick={() => navigate(alert.link)}
+                  className="w-full flex items-center gap-3 p-3.5 rounded-lg text-left hover:bg-muted/40 transition-colors group border border-transparent hover:border-border"
+                >
+                  <StatusBadge status={alert.severity} label={alert.severity === 'danger' ? 'Crítico' : 'Atenção'} />
+                  <span className="text-xs text-foreground flex-1">{alert.message}</span>
+                  <ArrowRight size={14} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-all group-hover:translate-x-0.5" />
+                </button>
+              ))}
+              {alerts.length > 10 && (
+                <p className="text-xs text-muted-foreground text-center pt-3">
+                  e mais {alerts.length - 10} alertas...
+                </p>
+              )}
             </div>
           </div>
         )}
-      </div>
 
-      {/* Alerts */}
-      {alerts.length > 0 && (
-        <div id="alerts-section" className="bg-card rounded-lg border p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-foreground">Alertas e Notificações</h2>
-            <AlertTriangle size={16} className="text-status-warning" />
-          </div>
-          <div className="space-y-2">
-            {alerts.slice(0, 10).map((alert) => (
-              <button
-                key={alert.id}
-                onClick={() => navigate(alert.link)}
-                className="w-full flex items-center gap-3 p-3 rounded-md text-left hover:bg-muted/40 transition-colors group"
-              >
-                <StatusBadge status={alert.severity} label={alert.severity === 'danger' ? 'Crítico' : 'Atenção'} />
-                <span className="text-xs text-foreground flex-1">{alert.message}</span>
-                <ArrowRight size={14} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-              </button>
-            ))}
-            {alerts.length > 10 && (
-              <p className="text-xs text-muted-foreground text-center pt-2">
-                e mais {alerts.length - 10} alertas...
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-      </div>{/* end dashboardRef */}
+      </div>
     </div>
   );
 }
