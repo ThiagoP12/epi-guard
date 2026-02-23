@@ -391,31 +391,45 @@ export default function PortalColaborador() {
                 <div className="p-5 space-y-4">
                   <div>
                     <Label className="text-xs font-medium">Item do Estoque *</Label>
-                    <Select value={produtoId} onValueChange={setProdutoId}>
-                      <SelectTrigger className="mt-1.5 h-10">
-                        <SelectValue placeholder="Selecionar equipamento..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {produtos.map(p => (
-                          <SelectItem key={p.id} value={p.id}>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-medium">{p.nome}</span>
-                              {p.tamanho && <span className="text-muted-foreground text-[10px] bg-muted px-1.5 py-0.5 rounded">Tam: {p.tamanho}</span>}
-                              {p.marca && <span className="text-muted-foreground text-[10px]">({p.marca})</span>}
-                              {p.ca && <span className="text-muted-foreground text-[10px] font-mono">CA: {p.ca}</span>}
-                              <span className="text-primary text-[10px] font-semibold ml-auto">{p.saldo} un</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {selectedProduct && (
-                      <div className="mt-1.5 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                        <span>Disponível: <strong className="text-primary">{selectedProduct.saldo} un</strong></span>
-                        {selectedProduct.tamanho && <span>• Tamanho: <strong>{selectedProduct.tamanho}</strong></span>}
-                        {selectedProduct.marca && <span>• Marca: <strong>{selectedProduct.marca}</strong></span>}
-                        {selectedProduct.ca && <span>• CA: <strong>{selectedProduct.ca}</strong></span>}
+                    {produtos.length === 0 ? (
+                      <div className="mt-1.5 p-3 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 text-center">
+                        <Package size={20} className="mx-auto text-muted-foreground/40 mb-1.5" />
+                        <p className="text-xs text-muted-foreground font-medium">Nenhum item disponível</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          {!colaborador.empresa_id
+                            ? 'Seu cadastro não está vinculado a uma empresa. Contate o administrador.'
+                            : 'Não há produtos com saldo em estoque para sua empresa.'}
+                        </p>
                       </div>
+                    ) : (
+                      <>
+                        <Select value={produtoId} onValueChange={setProdutoId}>
+                          <SelectTrigger className="mt-1.5 h-10">
+                            <SelectValue placeholder="Selecionar equipamento..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {produtos.map(p => (
+                              <SelectItem key={p.id} value={p.id}>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-medium">{p.nome}</span>
+                                  {p.tamanho && <span className="text-muted-foreground text-[10px] bg-muted px-1.5 py-0.5 rounded">Tam: {p.tamanho}</span>}
+                                  {p.marca && <span className="text-muted-foreground text-[10px]">({p.marca})</span>}
+                                  {p.ca && <span className="text-muted-foreground text-[10px] font-mono">CA: {p.ca}</span>}
+                                  <span className="text-primary text-[10px] font-semibold ml-auto">{p.saldo} un</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {selectedProduct && (
+                          <div className="mt-1.5 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                            <span>Disponível: <strong className="text-primary">{selectedProduct.saldo} un</strong></span>
+                            {selectedProduct.tamanho && <span>• Tamanho: <strong>{selectedProduct.tamanho}</strong></span>}
+                            {selectedProduct.marca && <span>• Marca: <strong>{selectedProduct.marca}</strong></span>}
+                            {selectedProduct.ca && <span>• CA: <strong>{selectedProduct.ca}</strong></span>}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
 
