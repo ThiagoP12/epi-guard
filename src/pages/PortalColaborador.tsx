@@ -319,7 +319,7 @@ export default function PortalColaborador() {
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-primary/10 border-2 border-primary/20 flex items-center justify-center text-xs sm:text-sm font-bold text-primary shrink-0">
               {initials}
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <h1 className="text-sm sm:text-base font-bold text-foreground truncate">
                 Olá, {colaborador.nome.split(' ')[0]} 👋
               </h1>
@@ -328,6 +328,14 @@ export default function PortalColaborador() {
                 {colaborador.empresa?.nome && <> • {colaborador.empresa.nome}</>}
               </p>
             </div>
+            <button
+              onClick={signOut}
+              className="flex items-center gap-1.5 text-muted-foreground hover:text-destructive transition-colors text-xs px-3 py-2 rounded-lg border border-border hover:border-destructive/30 hover:bg-destructive/5 shrink-0"
+              title="Sair"
+            >
+              <LogOut size={14} />
+              <span>Sair</span>
+            </button>
           </div>
 
           <div className="flex flex-wrap gap-1.5 sm:gap-2">
