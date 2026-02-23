@@ -7,11 +7,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import SignatureCanvas from '@/components/SignatureCanvas';
 import SelfieCapture from '@/components/SelfieCapture';
-import { LogOut, Package, History, ClipboardCheck, CheckCircle, Clock, XCircle, Loader2, Shield, FileText } from 'lucide-react';
+import {
+  LogOut, Package, History, ClipboardCheck, CheckCircle, Clock, XCircle,
+  Loader2, Shield, FileText, User, Building2, Hash, Briefcase, MapPin,
+  Camera, PenTool, Send, ChevronRight, AlertTriangle
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
@@ -35,7 +38,7 @@ interface Entrega {
 export default function PortalColaborador() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
-  const [tab, setTab] = useState('solicitar');
+  const [activeSection, setActiveSection] = useState<'solicitar' | 'historico' | 'recebimentos'>('solicitar');
   const [colaborador, setColaborador] = useState<Colaborador | null>(null);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [solicitacoes, setSolicitacoes] = useState<Solicitacao[]>([]);
@@ -55,7 +58,6 @@ export default function PortalColaborador() {
   useEffect(() => {
     if (!user) return;
     const load = async () => {
-      // Get colaborador linked to this user
       const { data: colab } = await supabase
         .from('colaboradores')
         .select('id, nome, matricula, cpf, email, setor, funcao, empresa_id, empresas:empresa_id(nome)')
@@ -66,7 +68,6 @@ export default function PortalColaborador() {
       const colabData = { ...colab, empresa: (colab as any).empresas } as Colaborador;
       setColaborador(colabData);
 
-      // Load products with stock
       let prodQuery = supabase.from('produtos').select('*').eq('ativo', true).order('nome');
       if (colabData.empresa_id) prodQuery = prodQuery.eq('empresa_id', colabData.empresa_id);
       const { data: prods } = await prodQuery;
@@ -81,7 +82,6 @@ export default function PortalColaborador() {
         setProdutos(withSaldo);
       }
 
-      // Load solicitations
       await loadSolicitacoes(colabData.id);
       await loadEntregas(colabData.id);
       setLoading(false);
@@ -121,7 +121,6 @@ export default function PortalColaborador() {
       .order('created_at', { ascending: false });
 
     if (data) {
-      // Enrich with product info
       const prodIds = [...new Set(data.map(s => s.produto_id))];
       const { data: prodsInfo } = await supabase
         .from('produtos')
@@ -138,7 +137,7 @@ export default function PortalColaborador() {
 
   const handleSubmit = async () => {
     if (!produtoId || !assinatura || !selfie || !declaracao || !colaborador) {
-      toast({ title: 'Atenção', description: 'Selecione o item, tire a selfie, assine e aceite a declaração.', variant: 'destructive' });
+      toast({ title: 'Atenção', description: 'Preencha todos os campos obrigatórios.', variant: 'destructive' });
       return;
     }
 
@@ -175,7 +174,7 @@ export default function PortalColaborador() {
 
       if (error) throw error;
 
-      toast({ title: 'Solicitação enviada!', description: 'Aguarde a aprovação do administrador.' });
+      toast({ title: '✅ Solicitação enviada!', description: 'Aguarde a aprovação do gestor.' });
       setProdutoId('');
       setQuantidade(1);
       setMotivo('Solicitação');
@@ -184,7 +183,7 @@ export default function PortalColaborador() {
       setSelfie(null);
       setDeclaracao(false);
       await loadSolicitacoes(colaborador.id);
-      setTab('historico');
+      setActiveSection('historico');
     } catch (err: any) {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     }
@@ -192,11 +191,15 @@ export default function PortalColaborador() {
   };
 
   const selectedProduct = produtos.find(p => p.id === produtoId);
+  const pendingCount = solicitacoes.filter(s => s.status === 'pendente').length;
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30">
-        <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <div className="text-center">
+          <div className="h-10 w-10 border-3 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground animate-pulse">Carregando portal...</p>
+        </div>
       </div>
     );
   }
@@ -204,268 +207,391 @@ export default function PortalColaborador() {
   if (!colaborador) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4">
-        <div className="text-center max-w-sm">
-          <Shield size={40} className="text-muted-foreground mx-auto mb-4" />
-          <h2 className="text-lg font-semibold">Conta não vinculada</h2>
-          <p className="text-sm text-muted-foreground mt-2">Sua conta ainda não está vinculada a um cadastro de colaborador. Entre em contato com o administrador.</p>
-          <Button variant="outline" className="mt-4" onClick={signOut}>Sair</Button>
+        <div className="text-center max-w-sm bg-card rounded-2xl border shadow-lg p-8">
+          <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle size={28} className="text-destructive" />
+          </div>
+          <h2 className="text-lg font-bold text-foreground">Conta não vinculada</h2>
+          <p className="text-sm text-muted-foreground mt-2 leading-relaxed">Sua conta ainda não está vinculada a um cadastro de colaborador. Entre em contato com o administrador.</p>
+          <Button variant="outline" className="mt-5 gap-2" onClick={signOut}>
+            <LogOut size={15} /> Sair
+          </Button>
         </div>
       </div>
     );
   }
 
-  const statusIcon = (s: string) => {
-    if (s === 'pendente') return <Clock size={14} className="text-yellow-500" />;
-    if (s === 'aprovado') return <CheckCircle size={14} className="text-green-500" />;
-    if (s === 'rejeitado') return <XCircle size={14} className="text-red-500" />;
-    if (s === 'entregue') return <Package size={14} className="text-blue-500" />;
-    return null;
-  };
-  const statusLabel = (s: string) => {
-    if (s === 'pendente') return 'Pendente';
-    if (s === 'aprovado') return 'Aprovado';
-    if (s === 'rejeitado') return 'Rejeitado';
-    if (s === 'entregue') return 'Entregue';
-    return s;
+  const statusConfig = {
+    pendente: { icon: Clock, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800', label: 'Pendente' },
+    aprovado: { icon: CheckCircle, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800', label: 'Aprovado' },
+    rejeitado: { icon: XCircle, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800', label: 'Rejeitado' },
+    entregue: { icon: Package, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800', label: 'Entregue' },
   };
 
+  const navItems = [
+    { key: 'solicitar' as const, label: 'Solicitar', icon: ClipboardCheck, badge: 0 },
+    { key: 'historico' as const, label: 'Solicitações', icon: History, badge: pendingCount },
+    { key: 'recebimentos' as const, label: 'Recebimentos', icon: Package, badge: entregas.length },
+  ];
+
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">
       {/* Header */}
-      <header className="h-14 bg-primary flex items-center justify-between px-4 shadow-sm">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-primary-foreground/15 flex items-center justify-center">
-            <Shield size={18} className="text-primary-foreground" />
+      <header className="bg-primary shadow-lg">
+        <div className="max-w-3xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary-foreground/15 backdrop-blur-sm flex items-center justify-center ring-1 ring-primary-foreground/20">
+                <Shield size={20} className="text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="text-primary-foreground font-bold text-base leading-none">Portal do Colaborador</h1>
+                <p className="text-primary-foreground/50 text-[11px] mt-0.5">{colaborador.empresa?.nome || 'Gestão EPI & EPC'}</p>
+              </div>
+            </div>
+            <button
+              onClick={signOut}
+              className="flex items-center gap-1.5 text-primary-foreground/60 hover:text-primary-foreground text-xs transition-colors px-3 py-2 rounded-lg hover:bg-primary-foreground/10"
+            >
+              <LogOut size={15} />
+              <span className="hidden sm:inline">Sair</span>
+            </button>
           </div>
-          <span className="text-primary-foreground font-semibold text-sm">Portal do Colaborador</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="text-right hidden sm:block">
-            <p className="text-primary-foreground/90 text-sm font-medium leading-none">{colaborador.nome}</p>
-            <p className="text-primary-foreground/50 text-[10px] mt-0.5">{colaborador.setor} • {colaborador.funcao}</p>
-          </div>
-          <button onClick={signOut} className="text-primary-foreground/60 hover:text-primary-foreground transition-colors p-1.5 rounded-md hover:bg-primary-foreground/10">
-            <LogOut size={16} />
-          </button>
         </div>
       </header>
 
-      <div className="max-w-2xl mx-auto p-4 sm:p-6">
-        {/* Info card */}
-        <div className="bg-card rounded-xl border shadow-sm p-4 mb-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-            <div><span className="text-muted-foreground">Nome:</span><p className="font-medium">{colaborador.nome}</p></div>
-            <div><span className="text-muted-foreground">Matrícula:</span><p className="font-medium">{colaborador.matricula}</p></div>
-            <div><span className="text-muted-foreground">CPF:</span><p className="font-medium font-mono">{colaborador.cpf || '—'}</p></div>
-            <div><span className="text-muted-foreground">Revenda:</span><p className="font-medium">{colaborador.empresa?.nome || '—'}</p></div>
+      <div className="max-w-3xl mx-auto px-4 -mt-4 relative z-10">
+        {/* Profile Card */}
+        <div className="bg-card rounded-2xl border shadow-md p-5 mb-5">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <User size={24} className="text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base font-bold text-foreground truncate">{colaborador.nome}</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">{colaborador.funcao} • {colaborador.setor}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <InfoChip icon={Hash} label="Matrícula" value={colaborador.matricula} />
+            <InfoChip icon={Shield} label="CPF" value={colaborador.cpf ? formatCpf(colaborador.cpf) : '—'} mono />
+            <InfoChip icon={MapPin} label="Setor" value={colaborador.setor} />
+            <InfoChip icon={Building2} label="Revenda" value={colaborador.empresa?.nome || '—'} />
           </div>
         </div>
 
-        {/* Tabs Navigation */}
-        <Tabs value={tab} onValueChange={setTab} className="w-full">
-          <TabsList className="w-full grid grid-cols-3 mb-4 h-11">
-            <TabsTrigger value="solicitar" className="gap-1.5 text-xs sm:text-sm">
-              <ClipboardCheck size={15} />
-              <span className="hidden sm:inline">Solicitar</span> EPI
-            </TabsTrigger>
-            <TabsTrigger value="historico" className="gap-1.5 text-xs sm:text-sm relative">
-              <History size={15} />
-              <span className="hidden sm:inline">Minhas</span> Solicitações
-              {solicitacoes.filter(s => s.status === 'pendente').length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-[hsl(var(--status-warning))] text-background text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                  {solicitacoes.filter(s => s.status === 'pendente').length}
+        {/* Navigation */}
+        <div className="flex gap-2 mb-5">
+          {navItems.map(item => (
+            <button
+              key={item.key}
+              onClick={() => setActiveSection(item.key)}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-sm font-medium transition-all duration-200 relative border',
+                activeSection === item.key
+                  ? 'bg-primary text-primary-foreground shadow-md border-primary'
+                  : 'bg-card text-muted-foreground hover:text-foreground hover:bg-accent border-border hover:border-primary/30'
+              )}
+            >
+              <item.icon size={17} />
+              <span className="hidden sm:inline">{item.label}</span>
+              {item.badge > 0 && (
+                <span className={cn(
+                  'absolute -top-1.5 -right-1.5 text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center',
+                  activeSection === item.key
+                    ? 'bg-primary-foreground text-primary'
+                    : 'bg-primary text-primary-foreground'
+                )}>
+                  {item.badge}
                 </span>
               )}
-            </TabsTrigger>
-            <TabsTrigger value="recebimentos" className="gap-1.5 text-xs sm:text-sm relative">
-              <Package size={15} />
-              <span className="hidden sm:inline">Meus</span> Recebimentos
-              {entregas.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                  {entregas.length}
-                </span>
-              )}
-            </TabsTrigger>
-          </TabsList>
+            </button>
+          ))}
+        </div>
 
-          <TabsContent value="solicitar">
-          <div className="bg-card rounded-xl border shadow-sm p-5 space-y-5">
-            <div>
-              <Label className="text-xs font-medium">EPI Desejado *</Label>
-              <Select value={produtoId} onValueChange={setProdutoId}>
-                <SelectTrigger className="mt-1.5 h-10"><SelectValue placeholder="Selecionar item..." /></SelectTrigger>
-                <SelectContent>
-                  {produtos.map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.nome} — CA: {p.ca || 'N/A'} (Disponível: {p.saldo})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        {/* Content */}
+        <div className="pb-8">
+          {/* SOLICITAR */}
+          {activeSection === 'solicitar' && (
+            <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+              <div className="bg-card rounded-2xl border shadow-sm overflow-hidden">
+                <div className="bg-primary/5 border-b px-5 py-3">
+                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <ClipboardCheck size={16} className="text-primary" />
+                    Nova Solicitação de EPI
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Preencha os campos abaixo para solicitar um equipamento</p>
+                </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="text-xs font-medium">Quantidade *</Label>
-                <Input type="number" min={1} max={selectedProduct?.saldo || 999} value={quantidade} onChange={(e) => setQuantidade(Number(e.target.value))} className="mt-1.5 h-10" />
-              </div>
-              <div>
-                <Label className="text-xs font-medium">Motivo</Label>
-                <Select value={motivo} onValueChange={setMotivo}>
-                  <SelectTrigger className="mt-1.5 h-10"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {['Solicitação', 'Troca por desgaste', 'Perda', 'Danificado'].map(m => (
-                      <SelectItem key={m} value={m}>{m}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+                <div className="p-5 space-y-5">
+                  {/* Product selection */}
+                  <div>
+                    <Label className="text-xs font-semibold text-foreground">Item do Estoque *</Label>
+                    <Select value={produtoId} onValueChange={setProdutoId}>
+                      <SelectTrigger className="mt-1.5 h-11">
+                        <SelectValue placeholder="Selecionar equipamento..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {produtos.map(p => (
+                          <SelectItem key={p.id} value={p.id}>
+                            <div className="flex items-center gap-2">
+                              <Package size={13} className="text-muted-foreground shrink-0" />
+                              <span>{p.nome}</span>
+                              {p.ca && <span className="text-muted-foreground text-[10px]">CA: {p.ca}</span>}
+                              <span className="text-primary text-[10px] font-semibold ml-auto">({p.saldo} disp.)</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedProduct && (
+                      <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2 border">
+                        <Package size={13} className="text-primary shrink-0" />
+                        <span><strong>{selectedProduct.nome}</strong> — Estoque disponível: <strong className="text-primary">{selectedProduct.saldo}</strong></span>
+                      </div>
+                    )}
+                  </div>
 
-            <div>
-              <Label className="text-xs font-medium">Observação</Label>
-              <Textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Motivo detalhado (opcional)" className="mt-1.5" rows={2} />
-            </div>
-
-            <div>
-              <Label className="text-xs font-medium mb-2 block">Selfie do Colaborador *</Label>
-              <SelfieCapture onCaptureChange={setSelfie} />
-            </div>
-
-            <div>
-              <Label className="text-xs font-medium mb-2 block">Assinatura Digital *</Label>
-              <SignatureCanvas onSignatureChange={setAssinatura} />
-            </div>
-
-            <div className="flex items-start gap-2.5 p-3 rounded-lg bg-muted/40 border border-muted">
-              <Checkbox id="declaracao" checked={declaracao} onCheckedChange={(v) => setDeclaracao(v === true)} className="mt-0.5" />
-              <label htmlFor="declaracao" className="text-[11px] text-muted-foreground leading-relaxed cursor-pointer">
-                <strong>DECLARO</strong> que as informações prestadas são verdadeiras e que necessito do EPI solicitado para execução segura de minhas atividades.
-                Estou ciente de que a assinatura digital aqui aposta possui validade jurídica conforme a MP 2.200-2/2001 e que este documento é protegido por hash criptográfico SHA-256.
-              </label>
-            </div>
-
-            <Button className="w-full h-11 text-sm font-semibold" onClick={handleSubmit} disabled={submitting}>
-              {submitting ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 size={16} className="animate-spin" /> Enviando...
-                </span>
-              ) : (
-                <><ClipboardCheck size={17} className="mr-2" /> Enviar Solicitação</>
-              )}
-            </Button>
-          </div>
-          </TabsContent>
-
-          <TabsContent value="historico">
-          <div className="space-y-3">
-            {solicitacoes.length === 0 ? (
-              <div className="bg-card rounded-xl border shadow-sm p-8 text-center">
-                <History size={32} className="text-muted-foreground/40 mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Nenhuma solicitação realizada.</p>
-              </div>
-            ) : (
-              solicitacoes.map(s => (
-                <div key={s.id} className="bg-card rounded-xl border shadow-sm p-4">
-                  <div className="flex items-start justify-between">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-sm font-medium">{s.produto?.nome || 'Produto'}</p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        CA: {s.produto?.ca || 'N/A'} • Qtde: {s.quantidade} • {s.motivo}
-                      </p>
+                      <Label className="text-xs font-semibold text-foreground">Quantidade *</Label>
+                      <Input
+                        type="number" min={1} max={selectedProduct?.saldo || 999}
+                        value={quantidade}
+                        onChange={(e) => setQuantidade(Number(e.target.value))}
+                        className="mt-1.5 h-11"
+                      />
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      {statusIcon(s.status)}
-                      <span className={cn("text-xs font-medium",
-                        s.status === 'pendente' && 'text-yellow-600',
-                        s.status === 'aprovado' && 'text-green-600',
-                        s.status === 'rejeitado' && 'text-red-600',
-                        s.status === 'entregue' && 'text-blue-600',
-                      )}>{statusLabel(s.status)}</span>
+                    <div>
+                      <Label className="text-xs font-semibold text-foreground">Motivo</Label>
+                      <Select value={motivo} onValueChange={setMotivo}>
+                        <SelectTrigger className="mt-1.5 h-11"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {['Solicitação', 'Troca por desgaste', 'Perda', 'Danificado'].map(m => (
+                            <SelectItem key={m} value={m}>{m}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-2">
-                    {new Date(s.created_at).toLocaleString('pt-BR')}
-                  </p>
-                  {s.motivo_rejeicao && (
-                    <p className="text-[11px] text-red-600 mt-1 bg-red-50 dark:bg-red-950/30 rounded px-2 py-1">
-                      Motivo: {s.motivo_rejeicao}
-                    </p>
-                  )}
-                  {s.observacao && (
-                    <p className="text-[11px] text-muted-foreground mt-1">Obs: {s.observacao}</p>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-          </TabsContent>
 
-          <TabsContent value="recebimentos">
-          <div className="space-y-4">
-            {/* Totalizador */}
-            {entregas.length > 0 && (() => {
-              const totals = new Map<string, { nome: string; ca: string | null; total: number }>();
-              entregas.forEach(e => e.itens.forEach(i => {
-                const prev = totals.get(i.nome_snapshot);
-                if (prev) prev.total += i.quantidade;
-                else totals.set(i.nome_snapshot, { nome: i.nome_snapshot, ca: i.ca_snapshot, total: i.quantidade });
-              }));
-              const items = [...totals.values()].sort((a, b) => b.total - a.total);
-              const grandTotal = items.reduce((s, i) => s + i.total, 0);
-              return (
-                <div className="bg-card rounded-xl border shadow-sm p-4 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Resumo — Total Recebido</p>
-                    <span className="text-xs font-bold text-foreground">{grandTotal} itens</span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                    {items.map(item => (
-                      <div key={item.nome} className="flex items-center justify-between bg-muted/30 rounded-md px-2.5 py-1.5 border text-xs">
-                        <div className="flex-1 min-w-0">
-                          <span className="font-medium truncate block">{item.nome}</span>
-                          {item.ca && <span className="text-[10px] text-muted-foreground">CA: {item.ca}</span>}
-                        </div>
-                        <span className="font-bold text-primary ml-2 shrink-0">{item.total}x</span>
-                      </div>
-                    ))}
+                  <div>
+                    <Label className="text-xs font-semibold text-foreground">Observação</Label>
+                    <Textarea
+                      value={observacao}
+                      onChange={(e) => setObservacao(e.target.value)}
+                      placeholder="Descreva o motivo detalhado (opcional)"
+                      className="mt-1.5 resize-none"
+                      rows={2}
+                    />
                   </div>
                 </div>
-              );
-            })()}
-
-            {/* Lista de entregas */}
-            {entregas.length === 0 ? (
-              <div className="bg-card rounded-xl border shadow-sm p-8 text-center">
-                <Package size={32} className="text-muted-foreground/40 mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Nenhum EPI recebido ainda.</p>
               </div>
-            ) : (
-              entregas.map(e => (
-                <div key={e.id} className="bg-card rounded-xl border shadow-sm p-4 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <FileText size={14} className="text-primary" />
-                      <span className="text-sm font-medium">{e.motivo}</span>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground">
-                      {format(new Date(e.data_hora), 'dd/MM/yyyy HH:mm')}
-                    </span>
-                  </div>
-                  <div className="space-y-1">
-                    {e.itens.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between text-xs bg-muted/20 rounded px-2.5 py-1.5">
-                        <span>{item.nome_snapshot} {item.ca_snapshot && <span className="text-muted-foreground">— CA: {item.ca_snapshot}</span>}</span>
-                        <span className="font-semibold">{item.quantidade}x</span>
-                      </div>
-                    ))}
-                  </div>
-                  {e.observacao && <p className="text-[11px] text-muted-foreground">Obs: {e.observacao}</p>}
+
+              {/* Selfie */}
+              <div className="bg-card rounded-2xl border shadow-sm overflow-hidden">
+                <div className="bg-primary/5 border-b px-5 py-3">
+                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <Camera size={16} className="text-primary" />
+                    Selfie do Colaborador *
+                  </h3>
                 </div>
-              ))
-            )}
-          </div>
-          </TabsContent>
-        </Tabs>
+                <div className="p-5">
+                  <SelfieCapture onCaptureChange={setSelfie} />
+                </div>
+              </div>
+
+              {/* Signature */}
+              <div className="bg-card rounded-2xl border shadow-sm overflow-hidden">
+                <div className="bg-primary/5 border-b px-5 py-3">
+                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <PenTool size={16} className="text-primary" />
+                    Assinatura Digital *
+                  </h3>
+                </div>
+                <div className="p-5">
+                  <SignatureCanvas onSignatureChange={setAssinatura} />
+                </div>
+              </div>
+
+              {/* Declaration + Submit */}
+              <div className="bg-card rounded-2xl border shadow-sm p-5 space-y-4">
+                <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
+                  <Checkbox
+                    id="declaracao"
+                    checked={declaracao}
+                    onCheckedChange={(v) => setDeclaracao(v === true)}
+                    className="mt-0.5"
+                  />
+                  <label htmlFor="declaracao" className="text-[11px] text-foreground/80 leading-relaxed cursor-pointer">
+                    <strong className="text-foreground">DECLARO</strong> que as informações prestadas são verdadeiras e que necessito do EPI solicitado para execução segura das minhas atividades.
+                    Estou ciente de que a assinatura digital aqui aposta possui validade jurídica conforme a MP 2.200-2/2001 e que este documento é protegido por hash criptográfico SHA-256.
+                  </label>
+                </div>
+
+                <Button
+                  className="w-full h-12 text-sm font-bold rounded-xl gap-2"
+                  onClick={handleSubmit}
+                  disabled={submitting || !produtoId || !assinatura || !selfie || !declaracao}
+                >
+                  {submitting ? (
+                    <><Loader2 size={17} className="animate-spin" /> Enviando solicitação...</>
+                  ) : (
+                    <><Send size={17} /> Enviar Solicitação</>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* HISTÓRICO */}
+          {activeSection === 'historico' && (
+            <div className="space-y-3 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+              {solicitacoes.length === 0 ? (
+                <EmptyState icon={History} message="Nenhuma solicitação realizada ainda." />
+              ) : (
+                solicitacoes.map(s => {
+                  const cfg = statusConfig[s.status as keyof typeof statusConfig] || statusConfig.pendente;
+                  const StatusIcon = cfg.icon;
+                  return (
+                    <div key={s.id} className={cn('rounded-2xl border shadow-sm p-4 transition-colors', cfg.bg)}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate">{s.produto?.nome || 'Produto'}</p>
+                          <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1.5 flex-wrap">
+                            {s.produto?.ca && <span className="bg-background/50 px-1.5 py-0.5 rounded text-[10px] font-mono">CA: {s.produto.ca}</span>}
+                            <span>Qtde: {s.quantidade}</span>
+                            <span>•</span>
+                            <span>{s.motivo}</span>
+                          </p>
+                        </div>
+                        <div className={cn('flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold shrink-0', cfg.color)}>
+                          <StatusIcon size={13} />
+                          {cfg.label}
+                        </div>
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-current/10 flex items-center justify-between">
+                        <span className="text-[10px] text-muted-foreground">
+                          {new Date(s.created_at).toLocaleString('pt-BR')}
+                        </span>
+                      </div>
+                      {s.motivo_rejeicao && (
+                        <div className="mt-2 flex items-start gap-2 bg-red-100 dark:bg-red-950/40 rounded-lg px-3 py-2 text-[11px] text-red-700 dark:text-red-400">
+                          <XCircle size={13} className="shrink-0 mt-0.5" />
+                          <span>Motivo da rejeição: {s.motivo_rejeicao}</span>
+                        </div>
+                      )}
+                      {s.observacao && (
+                        <p className="text-[11px] text-muted-foreground mt-1.5 italic">Obs: {s.observacao}</p>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          {/* RECEBIMENTOS */}
+          {activeSection === 'recebimentos' && (
+            <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+              {/* Summary */}
+              {entregas.length > 0 && (() => {
+                const totals = new Map<string, { nome: string; ca: string | null; total: number }>();
+                entregas.forEach(e => e.itens.forEach(i => {
+                  const prev = totals.get(i.nome_snapshot);
+                  if (prev) prev.total += i.quantidade;
+                  else totals.set(i.nome_snapshot, { nome: i.nome_snapshot, ca: i.ca_snapshot, total: i.quantidade });
+                }));
+                const items = [...totals.values()].sort((a, b) => b.total - a.total);
+                const grandTotal = items.reduce((s, i) => s + i.total, 0);
+                return (
+                  <div className="bg-primary/5 rounded-2xl border border-primary/20 p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">Resumo de Recebimentos</h3>
+                      <span className="text-sm font-bold text-primary bg-primary/10 px-3 py-1 rounded-full">{grandTotal} itens</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {items.map(item => (
+                        <div key={item.nome} className="flex items-center justify-between bg-card rounded-xl px-3 py-2.5 border text-xs shadow-sm">
+                          <div className="flex-1 min-w-0">
+                            <span className="font-medium truncate block text-foreground">{item.nome}</span>
+                            {item.ca && <span className="text-[10px] text-muted-foreground font-mono">CA: {item.ca}</span>}
+                          </div>
+                          <span className="font-bold text-primary ml-3 text-sm">{item.total}×</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {entregas.length === 0 ? (
+                <EmptyState icon={Package} message="Nenhum equipamento recebido ainda." />
+              ) : (
+                entregas.map(e => (
+                  <div key={e.id} className="bg-card rounded-2xl border shadow-sm overflow-hidden">
+                    <div className="flex items-center justify-between px-5 py-3 bg-muted/30 border-b">
+                      <div className="flex items-center gap-2">
+                        <FileText size={15} className="text-primary" />
+                        <span className="text-sm font-semibold text-foreground">{e.motivo}</span>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground font-mono">
+                        {format(new Date(e.data_hora), 'dd/MM/yyyy HH:mm')}
+                      </span>
+                    </div>
+                    <div className="p-4 space-y-1.5">
+                      {e.itens.map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between text-xs bg-muted/20 rounded-lg px-3 py-2.5 border">
+                          <div className="flex items-center gap-2">
+                            <Package size={13} className="text-muted-foreground" />
+                            <span className="font-medium text-foreground">{item.nome_snapshot}</span>
+                            {item.ca_snapshot && <span className="text-muted-foreground font-mono text-[10px]">CA: {item.ca_snapshot}</span>}
+                          </div>
+                          <span className="font-bold text-primary">{item.quantidade}×</span>
+                        </div>
+                      ))}
+                    </div>
+                    {e.observacao && (
+                      <div className="px-5 pb-3">
+                        <p className="text-[11px] text-muted-foreground italic">Obs: {e.observacao}</p>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
+}
+
+function InfoChip({ icon: Icon, label, value, mono }: { icon: any; label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="bg-muted/40 rounded-xl px-3 py-2.5 border">
+      <div className="flex items-center gap-1.5 mb-1">
+        <Icon size={11} className="text-muted-foreground" />
+        <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">{label}</span>
+      </div>
+      <p className={cn('text-xs font-semibold text-foreground truncate', mono && 'font-mono')}>{value}</p>
+    </div>
+  );
+}
+
+function EmptyState({ icon: Icon, message }: { icon: any; message: string }) {
+  return (
+    <div className="bg-card rounded-2xl border shadow-sm py-12 px-6 text-center">
+      <div className="w-14 h-14 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-3">
+        <Icon size={24} className="text-muted-foreground/40" />
+      </div>
+      <p className="text-sm text-muted-foreground">{message}</p>
+    </div>
+  );
+}
+
+function formatCpf(cpf: string): string {
+  const digits = cpf.replace(/\D/g, '');
+  if (digits.length !== 11) return cpf;
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
 }
