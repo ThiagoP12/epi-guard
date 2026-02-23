@@ -511,14 +511,14 @@ export default function Colaboradores() {
             <SelectTrigger className="w-full sm:w-36 h-9"><Filter size={13} className="mr-1" /><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos setores</SelectItem>
-              {setores.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              {setoresCadastrados.map(s => <SelectItem key={s.id} value={s.nome}>{s.nome}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={funcaoFilter} onValueChange={setFuncaoFilter}>
             <SelectTrigger className="w-full sm:w-36 h-9"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todas funções</SelectItem>
-              {funcoes.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+              {funcoesCadastradas.map(f => <SelectItem key={f.id} value={f.nome}>{f.nome}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
