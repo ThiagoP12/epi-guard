@@ -15,6 +15,7 @@ interface Solicitacao {
   id: string;
   colaborador_id: string;
   produto_id: string;
+  empresa_id: string | null;
   quantidade: number;
   motivo: string;
   observacao: string | null;
@@ -87,12 +88,29 @@ export default function Solicitacoes() {
   const handleApprove = async (sol: Solicitacao) => {
     setProcessing(true);
     try {
+      // 1. Update status to approved
       const { error } = await supabase
         .from('solicitacoes_epi')
         .update({ status: 'aprovado', aprovado_por: user?.id, aprovado_em: new Date().toISOString() })
         .eq('id', sol.id);
       if (error) throw error;
-      toast({ title: 'Solicitação aprovada!' });
+
+      // 2. Create stock movement (saida)
+      const { error: movError } = await supabase
+        .from('movimentacoes_estoque')
+        .insert({
+          produto_id: sol.produto_id,
+          quantidade: sol.quantidade,
+          tipo_movimentacao: 'SAIDA',
+          colaborador_id: sol.colaborador_id,
+          empresa_id: sol.empresa_id || null,
+          usuario_id: user?.id,
+          motivo: `Aprovação solicitação - ${sol.motivo}`,
+          observacao: `Solicitação ${sol.id.slice(0, 8)}`,
+        } as any);
+      if (movError) throw movError;
+
+      toast({ title: 'Solicitação aprovada!', description: 'Estoque atualizado automaticamente.' });
       setDetailOpen(false);
       await load();
     } catch (err: any) {
@@ -116,6 +134,23 @@ export default function Solicitacoes() {
       toast({ title: 'Solicitação rejeitada' });
       setDetailOpen(false);
       setMotivoRejeicao('');
+      await load();
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+    setProcessing(false);
+  };
+
+  const handleDeliver = async (sol: Solicitacao) => {
+    setProcessing(true);
+    try {
+      const { error } = await supabase
+        .from('solicitacoes_epi')
+        .update({ status: 'entregue' })
+        .eq('id', sol.id);
+      if (error) throw error;
+      toast({ title: '✅ Entrega confirmada!' });
+      setDetailOpen(false);
       await load();
     } catch (err: any) {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
@@ -443,7 +478,18 @@ export default function Solicitacoes() {
                 </div>
               )}
 
-              {/* Rejection reason */}
+              {/* Actions for approved - confirm delivery */}
+              {selected.status === 'aprovado' && (
+                <div className="border-t pt-4">
+                  <p className="text-xs text-muted-foreground mb-3">O item foi aprovado. Confirme se a entrega foi realizada ao colaborador.</p>
+                  <div className="flex gap-2">
+                    <Button className="flex-1 gap-1.5" onClick={() => handleDeliver(selected)} disabled={processing}>
+                      {processing ? <Loader2 size={15} className="animate-spin" /> : <Package size={15} />}
+                      Confirmar Entrega
+                    </Button>
+                  </div>
+                </div>
+              )}
               {selected.status !== 'pendente' && selected.motivo_rejeicao && (
                 <div className="border-t pt-3">
                   <div className="text-xs bg-[hsl(var(--status-danger-bg))] text-[hsl(var(--status-danger))] rounded-xl px-4 py-3">
