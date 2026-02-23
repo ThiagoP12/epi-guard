@@ -24,7 +24,7 @@ interface Colaborador {
   setor: string; funcao: string; empresa_id: string | null;
   empresa?: { nome: string } | null;
 }
-interface Produto { id: string; nome: string; ca: string | null; tipo: string; saldo: number; }
+interface Produto { id: string; nome: string; ca: string | null; tipo: string; saldo: number; tamanho: string | null; marca: string | null; }
 interface Solicitacao {
   id: string; produto_id: string; quantidade: number; motivo: string; observacao: string | null;
   status: string; created_at: string; motivo_rejeicao: string | null;
@@ -82,7 +82,7 @@ export default function PortalColaborador() {
         for (const p of prods) {
           const { data: saldo } = await supabase.rpc('get_saldo_produto', { p_produto_id: p.id });
           if (typeof saldo === 'number' && saldo > 0) {
-            withSaldo.push({ id: p.id, nome: p.nome, ca: p.ca, tipo: p.tipo, saldo });
+            withSaldo.push({ id: p.id, nome: p.nome, ca: p.ca, tipo: p.tipo, saldo, tamanho: p.tamanho, marca: p.marca });
           }
         }
         setProdutos(withSaldo);
@@ -366,19 +366,24 @@ export default function PortalColaborador() {
                       <SelectContent>
                         {produtos.map(p => (
                           <SelectItem key={p.id} value={p.id}>
-                            <span className="flex items-center gap-2">
-                              <span>{p.nome}</span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium">{p.nome}</span>
+                              {p.tamanho && <span className="text-muted-foreground text-[10px] bg-muted px-1.5 py-0.5 rounded">Tam: {p.tamanho}</span>}
+                              {p.marca && <span className="text-muted-foreground text-[10px]">({p.marca})</span>}
                               {p.ca && <span className="text-muted-foreground text-[10px] font-mono">CA: {p.ca}</span>}
-                              <span className="text-primary text-[10px] font-semibold">({p.saldo})</span>
-                            </span>
+                              <span className="text-primary text-[10px] font-semibold ml-auto">{p.saldo} un</span>
+                            </div>
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                     {selectedProduct && (
-                      <p className="mt-1.5 text-xs text-muted-foreground">
-                        Disponível: <strong className="text-primary">{selectedProduct.saldo} unidades</strong>
-                      </p>
+                      <div className="mt-1.5 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                        <span>Disponível: <strong className="text-primary">{selectedProduct.saldo} un</strong></span>
+                        {selectedProduct.tamanho && <span>• Tamanho: <strong>{selectedProduct.tamanho}</strong></span>}
+                        {selectedProduct.marca && <span>• Marca: <strong>{selectedProduct.marca}</strong></span>}
+                        {selectedProduct.ca && <span>• CA: <strong>{selectedProduct.ca}</strong></span>}
+                      </div>
                     )}
                   </div>
 
