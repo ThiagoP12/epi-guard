@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import SignatureCanvas from '@/components/SignatureCanvas';
 import SelfieCapture from '@/components/SelfieCapture';
@@ -33,7 +34,7 @@ interface Entrega {
 export default function PortalColaborador() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
-  const [tab, setTab] = useState<'solicitar' | 'historico' | 'recebimentos'>('solicitar');
+  const [tab, setTab] = useState('solicitar');
   const [colaborador, setColaborador] = useState<Colaborador | null>(null);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [solicitacoes, setSolicitacoes] = useState<Solicitacao[]>([]);
@@ -258,30 +259,34 @@ export default function PortalColaborador() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-2 mb-4">
-          <Button variant={tab === 'solicitar' ? 'default' : 'outline'} size="sm" onClick={() => setTab('solicitar')} className="gap-1.5">
-            <ClipboardCheck size={14} /> Solicitar EPI
-          </Button>
-          <Button variant={tab === 'historico' ? 'default' : 'outline'} size="sm" onClick={() => setTab('historico')} className="gap-1.5">
-            <History size={14} /> Minhas Solicitações
-            {solicitacoes.filter(s => s.status === 'pendente').length > 0 && (
-              <span className="ml-1 bg-yellow-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                {solicitacoes.filter(s => s.status === 'pendente').length}
-              </span>
-            )}
-          </Button>
-          <Button variant={tab === 'recebimentos' ? 'default' : 'outline'} size="sm" onClick={() => setTab('recebimentos')} className="gap-1.5">
-            <Package size={14} /> Meus Recebimentos
-            {entregas.length > 0 && (
-              <span className="ml-1 bg-primary/80 text-primary-foreground text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                {entregas.length}
-              </span>
-            )}
-          </Button>
-        </div>
+        {/* Tabs Navigation */}
+        <Tabs value={tab} onValueChange={setTab} className="w-full">
+          <TabsList className="w-full grid grid-cols-3 mb-4 h-11">
+            <TabsTrigger value="solicitar" className="gap-1.5 text-xs sm:text-sm">
+              <ClipboardCheck size={15} />
+              <span className="hidden sm:inline">Solicitar</span> EPI
+            </TabsTrigger>
+            <TabsTrigger value="historico" className="gap-1.5 text-xs sm:text-sm relative">
+              <History size={15} />
+              <span className="hidden sm:inline">Minhas</span> Solicitações
+              {solicitacoes.filter(s => s.status === 'pendente').length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-[hsl(var(--status-warning))] text-background text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                  {solicitacoes.filter(s => s.status === 'pendente').length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="recebimentos" className="gap-1.5 text-xs sm:text-sm relative">
+              <Package size={15} />
+              <span className="hidden sm:inline">Meus</span> Recebimentos
+              {entregas.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                  {entregas.length}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
 
-        {tab === 'solicitar' && (
+          <TabsContent value="solicitar">
           <div className="bg-card rounded-xl border shadow-sm p-5 space-y-5">
             <div>
               <Label className="text-xs font-medium">EPI Desejado *</Label>
@@ -346,9 +351,9 @@ export default function PortalColaborador() {
               )}
             </Button>
           </div>
-        )}
+          </TabsContent>
 
-        {tab === 'historico' && (
+          <TabsContent value="historico">
           <div className="space-y-3">
             {solicitacoes.length === 0 ? (
               <div className="bg-card rounded-xl border shadow-sm p-8 text-center">
@@ -390,9 +395,9 @@ export default function PortalColaborador() {
               ))
             )}
           </div>
-        )}
+          </TabsContent>
 
-        {tab === 'recebimentos' && (
+          <TabsContent value="recebimentos">
           <div className="space-y-4">
             {/* Totalizador */}
             {entregas.length > 0 && (() => {
@@ -456,7 +461,8 @@ export default function PortalColaborador() {
               ))
             )}
           </div>
-        )}
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
