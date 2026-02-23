@@ -4,7 +4,7 @@ import {
   LayoutDashboard,
   Package,
   Users,
-  ClipboardCheck,
+  
   Shield,
   FileSearch,
   BarChart3,
@@ -33,7 +33,7 @@ const menuItems = [
   { label: 'Revendas', icon: Building2, path: '/revendas', phase: 1 },
   { label: 'Estoque', icon: Package, path: '/estoque', phase: 1 },
   { label: 'Colaboradores', icon: Users, path: '/colaboradores', phase: 1 },
-  { label: 'Entrega de EPI', icon: ClipboardCheck, path: '/entrega-epi', phase: 1 },
+  
   { label: 'Solicitações', icon: Construction, path: '/solicitacoes', phase: 1 },
   { label: 'Histórico', icon: History, path: '/historico-entregas', phase: 1 },
   { label: 'Auditoria', icon: FileSearch, path: '/auditoria', phase: 1 },

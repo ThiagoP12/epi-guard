@@ -10,7 +10,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Estoque from "./pages/Estoque";
 import Colaboradores from "./pages/Colaboradores";
-import EntregaEPI from "./pages/EntregaEPI";
+
 import HistoricoEntregas from "./pages/HistoricoEntregas";
 import ControleEPC from "./pages/ControleEPC";
 import Relatorios from "./pages/Relatorios";
@@ -51,7 +51,7 @@ function ProtectedRoutes() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/estoque" element={<Estoque />} />
           <Route path="/colaboradores" element={<Colaboradores />} />
-          <Route path="/entrega-epi" element={<EntregaEPI />} />
+          
           <Route path="/historico-entregas" element={<HistoricoEntregas />} />
           <Route path="/controle-epc" element={<ControleEPC />} />
           <Route path="/relatorios" element={<Relatorios />} />

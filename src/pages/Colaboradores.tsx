@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, ClipboardCheck, Plus, UserCheck, History, FileDown, Loader2, Users, Building2, UserX, Settings2, Filter, KeyRound, Upload, Camera, PenLine } from 'lucide-react';
+import { Search, ClipboardCheck, Plus, UserCheck, History, FileDown, Loader2, Users, Building2, UserX, Settings2, Filter, KeyRound, Upload, Camera, PenLine, Package } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useNavigate } from 'react-router-dom';
+import EntregaEPIForm from '@/components/EntregaEPIForm';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
@@ -617,7 +618,7 @@ export default function Colaboradores() {
       </Dialog>
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserCheck size={18} /> Detalhes do Colaborador
@@ -627,8 +628,11 @@ export default function Colaboradores() {
             <Tabs defaultValue="dados" className="flex-1 overflow-hidden flex flex-col">
               <TabsList className="w-full">
                 <TabsTrigger value="dados" className="flex-1 text-xs">Dados</TabsTrigger>
+                <TabsTrigger value="entrega" className="flex-1 text-xs gap-1">
+                  <Package size={13} /> Nova Entrega
+                </TabsTrigger>
                 <TabsTrigger value="historico" className="flex-1 text-xs gap-1">
-                  <History size={13} /> Histórico de Entregas
+                  <History size={13} /> Histórico
                 </TabsTrigger>
               </TabsList>
 
@@ -693,12 +697,23 @@ export default function Colaboradores() {
                   <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={() => { setDetailOpen(false); openEdit(detailColab); }}>
                     <Settings2 size={13} className="mr-1" /> Editar
                   </Button>
-                  <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={() => { setDetailOpen(false); navigate(`/entrega-epi?colaborador=${detailColab.id}`); }}>
-                    <ClipboardCheck size={13} className="mr-1" /> Nova Entrega
-                  </Button>
                 </div>
               </TabsContent>
 
+              <TabsContent value="entrega" className="flex-1 overflow-y-auto mt-3">
+                <EntregaEPIForm
+                  colaborador={{
+                    id: detailColab.id,
+                    nome: detailColab.nome,
+                    matricula: detailColab.matricula,
+                    cpf: detailColab.cpf,
+                    email: detailColab.email,
+                    setor: detailColab.setor,
+                    funcao: detailColab.funcao,
+                  }}
+                  onComplete={() => loadDetailEntregas(detailColab.id)}
+                />
+              </TabsContent>
               <TabsContent value="historico" className="flex-1 overflow-y-auto space-y-3 mt-3">
                 {loadingDetailEntregas ? (
                   <div className="flex items-center justify-center py-12">
