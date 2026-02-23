@@ -562,7 +562,13 @@ export type Database = {
     }
     Enums: {
       ajuste_tipo: "AUMENTO" | "REDUCAO"
-      app_role: "admin" | "almoxarifado" | "gestor" | "supervisor" | "tecnico"
+      app_role:
+        | "admin"
+        | "almoxarifado"
+        | "gestor"
+        | "supervisor"
+        | "tecnico"
+        | "colaborador"
       motivo_entrega:
         | "Primeira entrega"
         | "Troca por desgaste"
@@ -699,7 +705,14 @@ export const Constants = {
   public: {
     Enums: {
       ajuste_tipo: ["AUMENTO", "REDUCAO"],
-      app_role: ["admin", "almoxarifado", "gestor", "supervisor", "tecnico"],
+      app_role: [
+        "admin",
+        "almoxarifado",
+        "gestor",
+        "supervisor",
+        "tecnico",
+        "colaborador",
+      ],
       motivo_entrega: [
         "Primeira entrega",
         "Troca por desgaste",
