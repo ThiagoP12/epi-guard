@@ -239,7 +239,16 @@ export default function Layout() {
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-sidebar-foreground text-sm font-medium leading-tight truncate">{profile?.nome || 'Usuário'}</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-sidebar-foreground text-sm font-medium leading-tight truncate flex-1">{profile?.nome || 'Usuário'}</p>
+                  <button
+                    onClick={signOut}
+                    className="text-sidebar-muted hover:text-destructive transition-colors p-1 rounded-md hover:bg-sidebar-accent/60 shrink-0"
+                    title="Sair"
+                  >
+                    <LogOut size={14} />
+                  </button>
+                </div>
                 <p className="text-sidebar-muted text-[10px] capitalize leading-tight truncate">{role || ''}</p>
               </div>
               <button
@@ -252,13 +261,6 @@ export default function Layout() {
                   <Sun size={16} className={cn("absolute inset-0 transition-all duration-300", theme === 'dark' ? "opacity-0 rotate-90 scale-0" : "opacity-100 rotate-0 scale-100")} />
                   <Moon size={16} className={cn("absolute inset-0 transition-all duration-300", theme === 'dark' ? "opacity-100 rotate-0 scale-100" : "opacity-0 -rotate-90 scale-0")} />
                 </div>
-              </button>
-              <button
-                onClick={signOut}
-                className="text-sidebar-muted hover:text-destructive transition-colors p-1.5 rounded-md hover:bg-sidebar-accent/60 shrink-0"
-                title="Sair"
-              >
-                <LogOut size={16} />
               </button>
             </div>
           </div>
