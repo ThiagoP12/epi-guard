@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, ClipboardCheck, Plus, UserCheck, History, FileDown, Loader2, Users, Building2, UserX, Settings2, Filter } from 'lucide-react';
+import { Search, ClipboardCheck, Plus, UserCheck, History, FileDown, Loader2, Users, Building2, UserX, Settings2, Filter, KeyRound } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
@@ -55,6 +55,41 @@ export default function Colaboradores() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Create account modal
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [accountColab, setAccountColab] = useState<Colaborador | null>(null);
+  const [accountEmail, setAccountEmail] = useState('');
+  const [accountPassword, setAccountPassword] = useState('');
+  const [accountSubmitting, setAccountSubmitting] = useState(false);
+
+  const openCreateAccount = (c: Colaborador) => {
+    setAccountColab(c);
+    setAccountEmail(c.email || '');
+    setAccountPassword('');
+    setAccountOpen(true);
+  };
+
+  const handleCreateAccount = async () => {
+    if (!accountColab || !accountEmail || !accountPassword) {
+      toast({ title: 'Preencha e-mail e senha', variant: 'destructive' });
+      return;
+    }
+    setAccountSubmitting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('create-colaborador-account', {
+        body: { colaboradorId: accountColab.id, email: accountEmail, password: accountPassword },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Erro desconhecido');
+      toast({ title: 'Conta criada!', description: `Login: ${accountEmail}` });
+      setAccountOpen(false);
+      await load();
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+    setAccountSubmitting(false);
+  };
 
   // Histórico state
   const [historicoOpen, setHistoricoOpen] = useState(false);
@@ -390,6 +425,9 @@ export default function Colaboradores() {
                       <Button variant="ghost" size="sm" className="h-7 px-1.5 text-xs" onClick={() => openEdit(c)} title="Editar">
                         <Settings2 size={13} />
                       </Button>
+                      <Button variant="ghost" size="sm" className="h-7 px-1.5 text-xs" onClick={() => openCreateAccount(c)} title="Criar conta de acesso">
+                        <KeyRound size={13} />
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -704,6 +742,36 @@ export default function Colaboradores() {
               ))
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Account Dialog */}
+      <Dialog open={accountOpen} onOpenChange={setAccountOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base">🔑 Criar Conta de Acesso</DialogTitle>
+          </DialogHeader>
+          {accountColab && (
+            <div className="space-y-4">
+              <div className="bg-muted/40 rounded-lg p-3 text-xs">
+                <p className="font-medium">{accountColab.nome}</p>
+                <p className="text-muted-foreground">{accountColab.setor} • {accountColab.funcao} • Mat: {accountColab.matricula}</p>
+              </div>
+              <div>
+                <Label className="text-xs">E-mail de login *</Label>
+                <Input value={accountEmail} onChange={e => setAccountEmail(e.target.value)} className="mt-1 h-9" placeholder="colaborador@empresa.com" type="email" />
+              </div>
+              <div>
+                <Label className="text-xs">Senha provisória *</Label>
+                <Input value={accountPassword} onChange={e => setAccountPassword(e.target.value)} className="mt-1 h-9" placeholder="Mínimo 6 caracteres" type="password" minLength={6} />
+              </div>
+              <p className="text-[10px] text-muted-foreground">O colaborador usará este e-mail e senha para acessar o portal de solicitação de EPI.</p>
+              <Button className="w-full h-10" onClick={handleCreateAccount} disabled={accountSubmitting}>
+                {accountSubmitting ? <Loader2 size={15} className="animate-spin mr-2" /> : <KeyRound size={15} className="mr-2" />}
+                Criar Conta
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

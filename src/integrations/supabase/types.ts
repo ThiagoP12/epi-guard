@@ -31,6 +31,7 @@ export type Database = {
           tamanho_luva: string | null
           tamanho_uniforme: string | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           ativo?: boolean
@@ -48,6 +49,7 @@ export type Database = {
           tamanho_luva?: string | null
           tamanho_uniforme?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           ativo?: boolean
@@ -65,6 +67,7 @@ export type Database = {
           tamanho_luva?: string | null
           tamanho_uniforme?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -497,6 +500,91 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      solicitacoes_epi: {
+        Row: {
+          aprovado_em: string | null
+          aprovado_por: string | null
+          assinatura_base64: string | null
+          colaborador_id: string
+          created_at: string
+          declaracao_aceita: boolean
+          empresa_id: string | null
+          id: string
+          ip_origem: string | null
+          motivo: string
+          motivo_rejeicao: string | null
+          observacao: string | null
+          pdf_hash: string | null
+          produto_id: string
+          quantidade: number
+          status: string
+          updated_at: string
+          user_agent: string | null
+        }
+        Insert: {
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          assinatura_base64?: string | null
+          colaborador_id: string
+          created_at?: string
+          declaracao_aceita?: boolean
+          empresa_id?: string | null
+          id?: string
+          ip_origem?: string | null
+          motivo?: string
+          motivo_rejeicao?: string | null
+          observacao?: string | null
+          pdf_hash?: string | null
+          produto_id: string
+          quantidade?: number
+          status?: string
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Update: {
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          assinatura_base64?: string | null
+          colaborador_id?: string
+          created_at?: string
+          declaracao_aceita?: boolean
+          empresa_id?: string | null
+          id?: string
+          ip_origem?: string | null
+          motivo?: string
+          motivo_rejeicao?: string | null
+          observacao?: string | null
+          pdf_hash?: string | null
+          produto_id?: string
+          quantidade?: number
+          status?: string
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "solicitacoes_epi_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "colaboradores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitacoes_epi_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitacoes_epi_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_empresas: {
         Row: {
