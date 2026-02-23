@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { Save, Upload, X, ImageIcon, Camera, User } from 'lucide-react';
+import { Save, Upload, X, ImageIcon, Camera, User, Building2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import SetoresManager from '@/components/SetoresManager';
 import FuncoesManager from '@/components/FuncoesManager';
+import Revendas from '@/pages/Revendas';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -177,112 +179,125 @@ export default function Configuracoes() {
   return (
     <div>
       <h1 className="text-xl font-semibold text-foreground mb-5">Configurações</h1>
-      <div className="max-w-2xl space-y-6">
-        {/* Meu Perfil */}
-        <div className="bg-card rounded-lg border p-5">
-          <h2 className="text-sm font-semibold mb-4">Meu Perfil</h2>
-          <div className="flex items-center gap-5">
-            <div className="relative group">
-              <div className="w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center overflow-hidden bg-muted/30 shrink-0">
-                {profile?.avatar_url ? (
-                  <img src={profile.avatar_url} alt="Foto de perfil" className="w-full h-full object-cover" />
+      <Tabs defaultValue="geral" className="max-w-3xl">
+        <TabsList className="mb-4">
+          <TabsTrigger value="geral" className="text-xs">Geral</TabsTrigger>
+          <TabsTrigger value="revendas" className="text-xs gap-1">
+            <Building2 size={13} /> Revendas
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="geral" className="space-y-6">
+          {/* Meu Perfil */}
+          <div className="bg-card rounded-lg border p-5">
+            <h2 className="text-sm font-semibold mb-4">Meu Perfil</h2>
+            <div className="flex items-center gap-5">
+              <div className="relative group">
+                <div className="w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center overflow-hidden bg-muted/30 shrink-0">
+                  {profile?.avatar_url ? (
+                    <img src={profile.avatar_url} alt="Foto de perfil" className="w-full h-full object-cover" />
+                  ) : (
+                    <User size={32} className="text-muted-foreground/40" />
+                  )}
+                </div>
+                <button
+                  onClick={() => avatarInputRef.current?.click()}
+                  className="absolute inset-0 rounded-full bg-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                  disabled={uploadingAvatar}
+                >
+                  <Camera size={20} className="text-primary-foreground" />
+                </button>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium">{profile?.nome || 'Usuário'}</p>
+                <p className="text-xs text-muted-foreground">{profile?.email}</p>
+                <div className="flex gap-2 mt-2">
+                  <Button variant="outline" size="sm" onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar}>
+                    <Upload size={14} className="mr-1" /> {uploadingAvatar ? 'Enviando...' : 'Alterar foto'}
+                  </Button>
+                  {profile?.avatar_url && (
+                    <Button variant="ghost" size="sm" onClick={handleRemoveAvatar} className="text-destructive">
+                      <X size={14} className="mr-1" /> Remover
+                    </Button>
+                  )}
+                </div>
+                <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleUploadAvatar} className="hidden" />
+                <p className="text-[10px] text-muted-foreground">PNG, JPG. Máx 2MB.</p>
+              </div>
+            </div>
+          </div>
+          {/* Logo da Empresa */}
+          <div className="bg-card rounded-lg border p-5">
+            <h2 className="text-sm font-semibold mb-4">Logo da Empresa</h2>
+            <div className="flex items-center gap-5">
+              <div className="w-24 h-24 rounded-lg border-2 border-dashed flex items-center justify-center overflow-hidden bg-muted/30 shrink-0">
+                {logoUrl ? (
+                  <img src={logoUrl} alt="Logo da empresa" className="w-full h-full object-contain" />
                 ) : (
-                  <User size={32} className="text-muted-foreground/40" />
+                  <ImageIcon size={32} className="text-muted-foreground/40" />
                 )}
               </div>
-              <button
-                onClick={() => avatarInputRef.current?.click()}
-                className="absolute inset-0 rounded-full bg-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                disabled={uploadingAvatar}
-              >
-                <Camera size={20} className="text-primary-foreground" />
-              </button>
-            </div>
-            <div className="space-y-1.5">
-              <p className="text-sm font-medium">{profile?.nome || 'Usuário'}</p>
-              <p className="text-xs text-muted-foreground">{profile?.email}</p>
-              <div className="flex gap-2 mt-2">
-                <Button variant="outline" size="sm" onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar}>
-                  <Upload size={14} className="mr-1" /> {uploadingAvatar ? 'Enviando...' : 'Alterar foto'}
-                </Button>
-                {profile?.avatar_url && (
-                  <Button variant="ghost" size="sm" onClick={handleRemoveAvatar} className="text-destructive">
-                    <X size={14} className="mr-1" /> Remover
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">PNG, JPG ou SVG. Máx 2MB.</p>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                    <Upload size={14} className="mr-1" /> {uploading ? 'Enviando...' : 'Enviar imagem'}
                   </Button>
-                )}
+                  {logoUrl && (
+                    <Button variant="ghost" size="sm" onClick={handleRemoveLogo} className="text-destructive">
+                      <X size={14} className="mr-1" /> Remover
+                    </Button>
+                  )}
+                </div>
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleUploadLogo} className="hidden" />
               </div>
-              <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleUploadAvatar} className="hidden" />
-              <p className="text-[10px] text-muted-foreground">PNG, JPG. Máx 2MB.</p>
             </div>
           </div>
-        </div>
-        {/* Logo da Empresa */}
-        <div className="bg-card rounded-lg border p-5">
-          <h2 className="text-sm font-semibold mb-4">Logo da Empresa</h2>
-          <div className="flex items-center gap-5">
-            <div className="w-24 h-24 rounded-lg border-2 border-dashed flex items-center justify-center overflow-hidden bg-muted/30 shrink-0">
-              {logoUrl ? (
-                <img src={logoUrl} alt="Logo da empresa" className="w-full h-full object-contain" />
-              ) : (
-                <ImageIcon size={32} className="text-muted-foreground/40" />
-              )}
-            </div>
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">PNG, JPG ou SVG. Máx 2MB.</p>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                  <Upload size={14} className="mr-1" /> {uploading ? 'Enviando...' : 'Enviar imagem'}
-                </Button>
-                {logoUrl && (
-                  <Button variant="ghost" size="sm" onClick={handleRemoveLogo} className="text-destructive">
-                    <X size={14} className="mr-1" /> Remover
-                  </Button>
-                )}
-              </div>
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleUploadLogo} className="hidden" />
+
+          {/* Setores */}
+          <SetoresManager />
+
+          {/* Funções */}
+          <FuncoesManager />
+
+          <div className="bg-card rounded-lg border p-5">
+            <h2 className="text-sm font-semibold mb-4">Dados da Empresa (Termo NR-06)</h2>
+            <div className="space-y-3">
+              {empresaKeys.map(key => (
+                <div key={key}>
+                  <Label>{labels[key] || key}</Label>
+                  <Input value={values[key] || ''} onChange={(e) => setValues({ ...values, [key]: e.target.value })} className="mt-1" />
+                </div>
+              ))}
             </div>
           </div>
-        </div>
 
-        {/* Setores */}
-        <SetoresManager />
-
-        {/* Funções */}
-        <FuncoesManager />
-
-        <div className="bg-card rounded-lg border p-5">
-          <h2 className="text-sm font-semibold mb-4">Dados da Empresa (Termo NR-06)</h2>
-          <div className="space-y-3">
-            {empresaKeys.map(key => (
-              <div key={key}>
-                <Label>{labels[key] || key}</Label>
-                <Input value={values[key] || ''} onChange={(e) => setValues({ ...values, [key]: e.target.value })} className="mt-1" />
-              </div>
-            ))}
+          <div className="bg-card rounded-lg border p-5">
+            <h2 className="text-sm font-semibold mb-4">Parâmetros do Sistema</h2>
+            <div className="grid grid-cols-2 gap-3">
+              {paramKeys.map(key => (
+                <div key={key}>
+                  <Label>{labels[key] || key}</Label>
+                  <Input
+                    type={key === 'data_ultimo_acidente' ? 'date' : 'text'}
+                    value={values[key] || ''}
+                    onChange={(e) => setValues({ ...values, [key]: e.target.value })}
+                    className="mt-1"
+                  />
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
 
-        <div className="bg-card rounded-lg border p-5">
-          <h2 className="text-sm font-semibold mb-4">Parâmetros do Sistema</h2>
-          <div className="grid grid-cols-2 gap-3">
-            {paramKeys.map(key => (
-              <div key={key}>
-                <Label>{labels[key] || key}</Label>
-                <Input
-                  type={key === 'data_ultimo_acidente' ? 'date' : 'text'}
-                  value={values[key] || ''}
-                  onChange={(e) => setValues({ ...values, [key]: e.target.value })}
-                  className="mt-1"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
+          <Button onClick={handleSave} disabled={saving}>
+            <Save size={16} className="mr-2" /> {saving ? 'Salvando...' : 'Salvar Configurações'}
+          </Button>
+        </TabsContent>
 
-        <Button onClick={handleSave} disabled={saving}>
-          <Save size={16} className="mr-2" /> {saving ? 'Salvando...' : 'Salvar Configurações'}
-        </Button>
-      </div>
+        <TabsContent value="revendas">
+          <Revendas />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
