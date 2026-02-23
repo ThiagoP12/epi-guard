@@ -165,9 +165,18 @@ export default function Layout() {
               <Moon size={16} className={cn("absolute inset-0 transition-all duration-300", theme === 'dark' ? "opacity-100 rotate-0 scale-100" : "opacity-0 -rotate-90 scale-0")} />
             </div>
           </button>
-          <div className="text-right hidden sm:block mr-1">
-            <p className="text-primary-foreground/90 text-sm font-medium leading-none">{profile?.nome || 'Usuário'}</p>
-            <p className="text-primary-foreground/50 text-[10px] capitalize mt-0.5">{role || ''}</p>
+          <div className="flex items-center gap-2">
+            {profile?.avatar_url ? (
+              <img src={profile.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover border border-primary-foreground/20" />
+            ) : (
+              <div className="w-7 h-7 rounded-full bg-primary-foreground/15 flex items-center justify-center text-primary-foreground text-[10px] font-bold">
+                {(profile?.nome || 'U').charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="text-right hidden sm:block">
+              <p className="text-primary-foreground/90 text-sm font-medium leading-none">{profile?.nome || 'Usuário'}</p>
+              <p className="text-primary-foreground/50 text-[10px] capitalize mt-0.5">{role || ''}</p>
+            </div>
           </div>
           <div className="w-px h-6 bg-primary-foreground/15 hidden sm:block" />
           <button

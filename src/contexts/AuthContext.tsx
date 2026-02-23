@@ -4,7 +4,7 @@ import type { User } from '@supabase/supabase-js';
 
 interface AuthContextType {
   user: User | null;
-  profile: { nome: string; email: string; setor: string | null } | null;
+  profile: { nome: string; email: string; setor: string | null; avatar_url: string | null } | null;
   role: string | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
@@ -29,7 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchProfile = async (userId: string) => {
     const { data: profileData } = await supabase
       .from('profiles')
-      .select('nome, email, setor')
+      .select('nome, email, setor, avatar_url')
       .eq('id', userId)
       .single();
     
