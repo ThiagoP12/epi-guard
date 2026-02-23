@@ -102,8 +102,8 @@ export default function Login() {
         {mode === 'login' ? (
           <form onSubmit={handleLogin} className="bg-card rounded-xl border shadow-sm p-6 space-y-4">
             <div>
-              <Label className="text-xs font-medium">E-mail ou CPF</Label>
-              <Input type="text" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com ou 000.000.000-00" required className="mt-1.5 h-10" autoComplete="username" />
+              <Label className="text-xs font-medium">CPF ou E-mail</Label>
+              <Input type="text" value={email} onChange={e => setEmail(e.target.value)} placeholder="000.000.000-00 ou seu@email.com" required className="mt-1.5 h-10" autoComplete="username" />
             </div>
             <div>
               <Label className="text-xs font-medium">Senha</Label>

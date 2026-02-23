@@ -382,27 +382,16 @@ export default function ColaboradoresManager() {
                   <p className="text-[11px] text-muted-foreground">{accountColab.setor} • {accountColab.funcao} • Mat: {accountColab.matricula}</p>
                 </div>
               </div>
-              <div>
-                <Label className="text-xs">E-mail de acesso *</Label>
-                <div className="relative mt-1">
-                  <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input type="email" value={accountEmail} onChange={e => setAccountEmail(e.target.value)} className="h-9 pl-9" placeholder="colaborador@empresa.com" />
+              <div className="rounded-lg border bg-muted/20 p-3 space-y-1.5">
+                <div className="flex items-center gap-2 text-xs">
+                  <User size={12} className="text-muted-foreground" />
+                  <span className="text-muted-foreground">Login:</span>
+                  <span className="font-bold font-mono text-foreground">{accountColab.cpf?.replace(/\D/g, '').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') || accountColab.cpf}</span>
                 </div>
-              </div>
-              <div>
-                <Label className="text-xs">Senha *</Label>
-                <div className="relative mt-1">
-                  <KeyRound size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    type={showPassword ? 'text' : 'password'}
-                    value={accountPassword}
-                    onChange={e => setAccountPassword(e.target.value)}
-                    className="h-9 pl-9 pr-9"
-                    placeholder="Mín. 6 caracteres"
-                  />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
+                <div className="flex items-center gap-2 text-xs">
+                  <KeyRound size={12} className="text-muted-foreground" />
+                  <span className="text-muted-foreground">Senha:</span>
+                  <span className="font-bold font-mono text-foreground">rev123</span>
                 </div>
               </div>
               <div className="flex items-start gap-2 p-2.5 rounded-lg bg-primary/5 border border-primary/10">
