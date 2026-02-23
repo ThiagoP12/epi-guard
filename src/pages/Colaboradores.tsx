@@ -704,7 +704,40 @@ export default function Colaboradores() {
                     <p className="text-sm text-muted-foreground">Nenhuma entrega registrada.</p>
                   </div>
                 ) : (
-                  detailEntregas.map((entrega) => (
+                  <>
+                    {/* Totalizador por item */}
+                    {(() => {
+                      const totals = new Map<string, { nome: string; ca: string | null; total: number }>();
+                      detailEntregas.forEach(e => e.itens.forEach(i => {
+                        const key = i.nome_snapshot;
+                        const prev = totals.get(key);
+                        if (prev) { prev.total += i.quantidade; }
+                        else { totals.set(key, { nome: i.nome_snapshot, ca: i.ca_snapshot, total: i.quantidade }); }
+                      }));
+                      const items = [...totals.values()].sort((a, b) => b.total - a.total);
+                      const grandTotal = items.reduce((s, i) => s + i.total, 0);
+                      return (
+                        <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Resumo — Total Recebido</p>
+                            <span className="text-xs font-bold text-foreground">{grandTotal} itens</span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                            {items.map(item => (
+                              <div key={item.nome} className="flex items-center justify-between bg-card rounded-md px-2.5 py-1.5 border text-xs">
+                                <div className="flex-1 min-w-0">
+                                  <span className="font-medium truncate block">{item.nome}</span>
+                                  {item.ca && <span className="text-[10px] text-muted-foreground">CA: {item.ca}</span>}
+                                </div>
+                                <span className="font-bold text-primary ml-2 shrink-0">{item.total}x</span>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-[9px] text-muted-foreground">{detailEntregas.length} entrega(s) registrada(s)</p>
+                        </div>
+                      );
+                    })()}
+                  {detailEntregas.map((entrega) => (
                     <div key={entrega.id} className="rounded-lg border bg-card p-3 space-y-2 animate-fade-in">
                       <div className="flex items-start justify-between">
                         <div>
@@ -744,7 +777,8 @@ export default function Colaboradores() {
                         </table>
                       </div>
                     </div>
-                  ))
+                  ))}
+                  </>
                 )}
               </TabsContent>
             </Tabs>
