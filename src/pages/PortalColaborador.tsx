@@ -336,7 +336,7 @@ export default function PortalColaborador() {
         <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4 sm:mb-5">
           <StatCard
             label="Solicitações"
-            value={solicitacoes.length}
+            value={solicitacoes.filter(s => s.status !== 'entregue').length}
             detail={pendingCount > 0 ? `${pendingCount} pend.` : 'Nenhuma'}
             accent={pendingCount > 0}
           />
@@ -532,10 +532,10 @@ export default function PortalColaborador() {
           {/* HISTÓRICO */}
           {activeSection === 'historico' && (
             <div className="space-y-3 animate-in fade-in-0 duration-200">
-              {solicitacoes.length === 0 ? (
+              {solicitacoes.filter(s => s.status !== 'entregue').length === 0 ? (
                 <EmptyState icon={History} message="Nenhuma solicitação realizada ainda." sub="Suas solicitações de EPI aparecerão aqui." />
               ) : (
-                solicitacoes.map(s => {
+                solicitacoes.filter(s => s.status !== 'entregue').map(s => {
                   const cfg = statusConfig[s.status as keyof typeof statusConfig] || statusConfig.pendente;
                   const StatusIcon = cfg.icon;
                   return (
