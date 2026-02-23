@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Shield, Eye, EyeOff, Building2, Loader2 } from 'lucide-react';
+import { Shield, Eye, EyeOff, Building2, Loader2, User } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
@@ -21,11 +21,21 @@ export default function Login() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Resolve login identifier: if it looks like a CPF (digits only), convert to email format
+  const resolveEmail = (input: string) => {
+    const digits = input.replace(/\D/g, '');
+    if (digits.length === 11 && !/[@]/.test(input)) {
+      return `${digits}@portal.local`;
+    }
+    return input;
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const { error } = await signIn(email, password);
+    const resolvedEmail = resolveEmail(email);
+    const { error } = await signIn(resolvedEmail, password);
     if (error) setError(error);
     setLoading(false);
   };
@@ -92,8 +102,8 @@ export default function Login() {
         {mode === 'login' ? (
           <form onSubmit={handleLogin} className="bg-card rounded-xl border shadow-sm p-6 space-y-4">
             <div>
-              <Label className="text-xs font-medium">E-mail</Label>
-              <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" required className="mt-1.5 h-10" autoComplete="email" />
+              <Label className="text-xs font-medium">E-mail ou CPF</Label>
+              <Input type="text" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com ou 000.000.000-00" required className="mt-1.5 h-10" autoComplete="username" />
             </div>
             <div>
               <Label className="text-xs font-medium">Senha</Label>
