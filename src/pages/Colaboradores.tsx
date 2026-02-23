@@ -83,24 +83,26 @@ export default function Colaboradores() {
 
   const openCreateAccount = (c: Colaborador) => {
     setAccountColab(c);
-    setAccountEmail(c.email || '');
+    setAccountEmail(c.cpf?.replace(/\D/g, '') || '');
     setAccountPassword('');
     setAccountOpen(true);
   };
 
   const handleCreateAccount = async () => {
-    if (!accountColab || !accountEmail || !accountPassword) {
-      toast({ title: 'Preencha e-mail e senha', variant: 'destructive' });
+    const cpfDigits = accountEmail.replace(/\D/g, '');
+    if (!accountColab || !cpfDigits || cpfDigits.length !== 11 || !accountPassword) {
+      toast({ title: 'Preencha o CPF (11 dígitos) e senha', variant: 'destructive' });
       return;
     }
     setAccountSubmitting(true);
+    const email = `${cpfDigits}@portal.local`;
     try {
       const { data, error } = await supabase.functions.invoke('create-colaborador-account', {
-        body: { colaboradorId: accountColab.id, email: accountEmail, password: accountPassword },
+        body: { colaboradorId: accountColab.id, email, password: accountPassword },
       });
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || 'Erro desconhecido');
-      toast({ title: 'Conta criada!', description: `Login: ${accountEmail}` });
+      toast({ title: 'Conta criada!', description: `Login via CPF: ${cpfDigits}` });
       setAccountOpen(false);
       await load();
     } catch (err: any) {
@@ -1065,14 +1067,14 @@ export default function Colaboradores() {
                 <p className="text-muted-foreground">{accountColab.setor} • {accountColab.funcao} • Mat: {accountColab.matricula}</p>
               </div>
               <div>
-                <Label className="text-xs">E-mail de login *</Label>
-                <Input value={accountEmail} onChange={e => setAccountEmail(e.target.value)} className="mt-1 h-9" placeholder="colaborador@empresa.com" type="email" />
+                <Label className="text-xs">CPF do colaborador *</Label>
+                <Input value={accountEmail} onChange={e => setAccountEmail(e.target.value)} className="mt-1 h-9" placeholder="000.000.000-00" inputMode="numeric" />
               </div>
               <div>
                 <Label className="text-xs">Senha provisória *</Label>
                 <Input value={accountPassword} onChange={e => setAccountPassword(e.target.value)} className="mt-1 h-9" placeholder="Mínimo 6 caracteres" type="password" minLength={6} />
               </div>
-              <p className="text-[10px] text-muted-foreground">O colaborador usará este e-mail e senha para acessar o portal de solicitação de EPI.</p>
+              <p className="text-[10px] text-muted-foreground">O colaborador usará o CPF e senha para acessar o portal de solicitação de EPI.</p>
               <Button className="w-full h-10" onClick={handleCreateAccount} disabled={accountSubmitting}>
                 {accountSubmitting ? <Loader2 size={15} className="animate-spin mr-2" /> : <KeyRound size={15} className="mr-2" />}
                 Criar Conta
