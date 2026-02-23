@@ -83,7 +83,6 @@ export default function PortalColaborador() {
       setColaborador(colabData);
 
       let prodQuery = supabase.from('produtos').select('*').eq('ativo', true).order('nome');
-      if (colabData.empresa_id) prodQuery = prodQuery.eq('empresa_id', colabData.empresa_id);
       const { data: prods } = await prodQuery;
       if (prods) {
         const withSaldo: Produto[] = [];
