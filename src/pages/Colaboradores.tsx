@@ -443,16 +443,21 @@ export default function Colaboradores() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5 page-enter">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Colaboradores</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {selectedEmpresa ? selectedEmpresa.nome : 'Todas as empresas'} • {stats.total} ativos
+          <h1 className="text-lg font-semibold text-foreground flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-primary/10">
+              <Users size={18} className="text-primary" />
+            </div>
+            Colaboradores
+          </h1>
+          <p className="text-xs text-muted-foreground mt-1 ml-[34px]">
+            {selectedEmpresa ? selectedEmpresa.nome : 'Todas as empresas'} • {stats.total} ativos, {stats.inativos} inativos
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
           {isAdmin && (
             <>
               <input type="file" ref={fileInputRef} accept=".csv,.txt" className="hidden" onChange={handleImportCSV} />
@@ -465,72 +470,74 @@ export default function Colaboradores() {
                 a.download = 'modelo_colaboradores.csv';
                 a.click();
                 URL.revokeObjectURL(a.href);
-              }} className="gap-1.5" title="Baixar modelo CSV">
-                <Download size={15} /> Modelo CSV
+              }} className="gap-1.5 h-8 text-xs" title="Baixar modelo CSV">
+                <Download size={14} /> <span className="hidden sm:inline">Modelo CSV</span>
               </Button>
-              <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={importing || !selectedEmpresa} className="gap-1.5">
-                {importing ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
-                Importar CSV
+              <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={importing || !selectedEmpresa} className="gap-1.5 h-8 text-xs">
+                {importing ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                <span className="hidden sm:inline">Importar</span>
               </Button>
             </>
           )}
-          <Button size="sm" onClick={openAdd} className="gap-1.5">
-            <Plus size={15} /> Novo Colaborador
+          <Button size="sm" onClick={openAdd} className="gap-1.5 h-8 text-xs shadow-sm">
+            <Plus size={14} /> Novo
           </Button>
         </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-card rounded-lg border p-3.5">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Ativos</p>
-            <Users size={14} className="text-muted-foreground" />
-          </div>
-          <p className="text-xl font-bold text-foreground">{loading ? '—' : stats.total}</p>
-          <p className="text-[10px] text-status-ok mt-0.5">colaboradores em atividade</p>
-        </div>
-        <div className="bg-card rounded-lg border p-3.5">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Setores</p>
-            <Building2 size={14} className="text-muted-foreground" />
-          </div>
-          <p className="text-xl font-bold text-foreground">{loading ? '—' : stats.setores}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">setores distintos</p>
-        </div>
-        <div className="bg-card rounded-lg border p-3.5 border-l-2 border-l-status-warning">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Inativos</p>
-            <UserX size={14} className="text-status-warning" />
-          </div>
-          <p className="text-xl font-bold text-status-warning">{loading ? '—' : stats.inativos}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">colaboradores inativos</p>
-        </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        {[
+          { label: 'Total Ativos', value: stats.total, icon: Users, color: 'text-primary', bg: 'bg-primary/10', onClick: () => setStatusFilter('ativos') },
+          { label: 'Setores', value: stats.setores, icon: Building2, color: 'text-muted-foreground', bg: 'bg-muted', onClick: undefined },
+          { label: 'Inativos', value: stats.inativos, icon: UserX, color: 'text-[hsl(var(--status-warning))]', bg: 'bg-[hsl(var(--status-warning-bg))]', onClick: () => setStatusFilter('inativos') },
+          { label: 'Filtrados', value: filtered.length, icon: Filter, color: 'text-muted-foreground', bg: 'bg-muted', onClick: undefined },
+        ].map(kpi => (
+          <button
+            key={kpi.label}
+            onClick={kpi.onClick}
+            className={cn(
+              "relative rounded-xl border p-3.5 text-left transition-all duration-200 bg-card",
+              kpi.onClick && "hover:bg-accent/50 hover:border-border cursor-pointer"
+            )}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{kpi.label}</span>
+              <div className={cn("p-1.5 rounded-lg", kpi.bg)}>
+                <kpi.icon size={13} className={kpi.color} />
+              </div>
+            </div>
+            <p className="text-2xl font-bold tracking-tight text-foreground">{loading ? '—' : kpi.value}</p>
+          </button>
+        ))}
       </div>
 
       {/* Filters */}
-      <div className="bg-card rounded-lg border p-3">
-        <div className="flex flex-col sm:flex-row gap-2.5">
+      <div className="bg-card rounded-xl border shadow-sm p-3">
+        <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Buscar por nome, matrícula, setor ou função..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-9" />
+            <Input placeholder="Buscar por nome, matrícula, setor ou função..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-9 text-sm" />
           </div>
           <Select value={setorFilter} onValueChange={setSetorFilter}>
-            <SelectTrigger className="w-full sm:w-36 h-9"><Filter size={13} className="mr-1" /><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-36 h-9 text-xs">
+              <Filter size={12} className="mr-1 shrink-0 text-muted-foreground" />
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos setores</SelectItem>
               {setoresCadastrados.map(s => <SelectItem key={s.id} value={s.nome}>{s.nome}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={funcaoFilter} onValueChange={setFuncaoFilter}>
-            <SelectTrigger className="w-full sm:w-36 h-9"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-36 h-9 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todas funções</SelectItem>
               {funcoesCadastradas.map(f => <SelectItem key={f.id} value={f.nome}>{f.nome}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-32 h-9"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-28 h-9 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="ativos">Ativos</SelectItem>
               <SelectItem value="inativos">Inativos</SelectItem>
@@ -540,90 +547,102 @@ export default function Colaboradores() {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-card rounded-lg border overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/40">
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">Nome</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider hidden sm:table-cell">Matrícula</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider hidden md:table-cell">Setor</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider hidden lg:table-cell">Função</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider hidden xl:table-cell">Admissão</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider hidden xl:table-cell">Tamanhos</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {loading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i}>
-                    <td className="px-4 py-3"><div className="h-4 w-32 rounded skeleton-shimmer" /></td>
-                    <td className="px-4 py-3 hidden sm:table-cell"><div className="h-4 w-16 rounded skeleton-shimmer" /></td>
-                    <td className="px-4 py-3 hidden md:table-cell"><div className="h-4 w-20 rounded skeleton-shimmer" /></td>
-                    <td className="px-4 py-3 hidden lg:table-cell"><div className="h-4 w-24 rounded skeleton-shimmer" /></td>
-                    <td className="px-4 py-3 hidden xl:table-cell"><div className="h-4 w-20 rounded skeleton-shimmer" /></td>
-                    <td className="px-4 py-3 hidden xl:table-cell"><div className="h-4 w-24 rounded skeleton-shimmer" /></td>
-                    <td className="px-4 py-3"><div className="h-4 w-16 rounded skeleton-shimmer ml-auto" /></td>
-                  </tr>
-                ))
-              ) : filtered.map((c) => (
-                <tr key={c.id} className={cn("table-row-hover group", !c.ativo && "opacity-50")}>
-                  <td className="px-4 py-3">
-                    <button onClick={() => { setDetailColab(c); setDetailOpen(true); loadDetailEntregas(c.id); }} className="flex items-center gap-2.5 text-left hover:underline">
-                      <div className={cn(
-                        "w-7 h-7 rounded-full flex items-center justify-center shrink-0",
-                        c.ativo ? "bg-primary/10" : "bg-muted"
-                      )}>
-                        <span className={cn("text-[10px] font-bold", c.ativo ? "text-primary" : "text-muted-foreground")}>{c.nome.charAt(0)}</span>
-                      </div>
-                      <div>
-                        <span className="font-medium">{c.nome}</span>
-                        {!c.ativo && <span className="ml-2 text-[10px] text-status-warning font-medium">INATIVO</span>}
-                      </div>
-                    </button>
-                  </td>
-                  <td className="px-4 py-3 hidden sm:table-cell font-mono text-xs text-muted-foreground">{c.matricula}</td>
-                  <td className="px-4 py-3 hidden md:table-cell">
-                    <span className="text-xs bg-muted px-2 py-0.5 rounded-full">{c.setor}</span>
-                  </td>
-                  <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground text-xs">{c.funcao}</td>
-                  <td className="px-4 py-3 hidden xl:table-cell text-muted-foreground text-xs">
-                    {c.data_admissao ? formatDateShort(c.data_admissao) : '—'}
-                  </td>
-                  <td className="px-4 py-3 hidden xl:table-cell text-muted-foreground text-[10px]">
-                    {[c.tamanho_uniforme && `U:${c.tamanho_uniforme}`, c.tamanho_bota && `B:${c.tamanho_bota}`, c.tamanho_luva && `L:${c.tamanho_luva}`].filter(Boolean).join(' · ') || '—'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-0.5 opacity-70 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openHistorico(c)}>
-                        <History size={13} className="mr-1" /> Histórico
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs" onClick={() => navigate(`/entrega-epi?colaborador=${c.id}`)}>
-                        <ClipboardCheck size={13} className="mr-1" /> Entrega
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-7 px-1.5 text-xs" onClick={() => openEdit(c)} title="Editar">
-                        <Settings2 size={13} />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-7 px-1.5 text-xs" onClick={() => openCreateAccount(c)} title="Criar conta de acesso">
-                        <KeyRound size={13} />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Colaboradores List - Card style */}
+      {loading ? (
+        <div className="space-y-2">
+          {[1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="bg-card rounded-xl border p-4 animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-muted" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3.5 bg-muted rounded w-1/3" />
+                  <div className="h-2.5 bg-muted rounded w-1/2" />
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
-        {!loading && filtered.length === 0 && (
-          <div className="py-16 text-center">
-            <UserCheck size={36} className="mx-auto text-muted-foreground/25 mb-3" />
-            <p className="text-sm text-muted-foreground">Nenhum colaborador encontrado.</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">Tente ajustar os filtros ou adicione um novo.</p>
+      ) : filtered.length === 0 ? (
+        <div className="bg-card rounded-xl border p-12 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-muted mx-auto mb-4 flex items-center justify-center">
+            <UserCheck size={24} className="text-muted-foreground/40" />
           </div>
-        )}
-      </div>
+          <p className="text-sm font-medium text-foreground">Nenhum colaborador encontrado</p>
+          <p className="text-xs text-muted-foreground mt-1.5 max-w-xs mx-auto">Tente ajustar os filtros ou adicione um novo colaborador.</p>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {filtered.map((c) => {
+            const initials = c.nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+            return (
+              <div
+                key={c.id}
+                className={cn(
+                  "bg-card rounded-xl border shadow-sm card-interactive cursor-pointer overflow-hidden transition-all duration-150",
+                  !c.ativo && "opacity-60"
+                )}
+                onClick={() => { setDetailColab(c); setDetailOpen(true); loadDetailEntregas(c.id); }}
+              >
+                <div className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4">
+                  {/* Avatar */}
+                  <div className={cn(
+                    "w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
+                    c.ativo ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                  )}>
+                    {initials}
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-foreground truncate">{c.nome}</p>
+                      {!c.ativo && (
+                        <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-[hsl(var(--status-warning-bg))] text-[hsl(var(--status-warning))]">Inativo</span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-[11px] text-muted-foreground">
+                      <span className="font-mono">{c.matricula}</span>
+                      <span className="flex items-center gap-1">
+                        <Building2 size={10} />
+                        {c.setor}
+                      </span>
+                      <span>{c.funcao}</span>
+                      {c.cpf && <span className="hidden sm:inline font-mono">CPF: {formatCPF(c.cpf)}</span>}
+                    </div>
+                  </div>
+
+                  {/* Tamanhos (desktop) */}
+                  <div className="hidden lg:flex items-center gap-1.5 shrink-0">
+                    {c.tamanho_uniforme && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">U:{c.tamanho_uniforme}</span>
+                    )}
+                    {c.tamanho_bota && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">B:{c.tamanho_bota}</span>
+                    )}
+                    {c.tamanho_luva && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">L:{c.tamanho_luva}</span>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
+                    <Button variant="ghost" size="sm" className="h-7 px-1.5 text-xs" onClick={() => openEdit(c)} title="Editar">
+                      <Settings2 size={13} />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-7 px-1.5 text-xs" onClick={() => openCreateAccount(c)} title="Criar conta">
+                      <KeyRound size={13} />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-7 px-1.5 text-xs hidden sm:flex" onClick={() => openHistorico(c)} title="Histórico">
+                      <History size={13} />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          <p className="text-[11px] text-muted-foreground text-center pt-2">{filtered.length} colaborador{filtered.length !== 1 ? 'es' : ''}</p>
+        </div>
+      )}
 
       {/* Form Modal (Add/Edit) */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
