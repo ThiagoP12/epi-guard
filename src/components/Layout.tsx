@@ -14,10 +14,13 @@ import {
   Construction,
   ChevronRight,
   Building2,
+  ChevronsUpDown,
+  Check,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEmpresa } from '@/contexts/EmpresaContext';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 const menuItems = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/', phase: 1 },
@@ -33,8 +36,9 @@ const menuItems = [
 export default function Layout() {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [empresaPopoverOpen, setEmpresaPopoverOpen] = useState(false);
   const { profile, role, signOut } = useAuth();
-  const { selectedEmpresa } = useEmpresa();
+  const { empresas, selectedEmpresa, setSelectedEmpresa } = useEmpresa();
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
@@ -69,15 +73,55 @@ export default function Layout() {
           </div>
         </div>
 
-        {/* Breadcrumb + Empresa (desktop) */}
-        <div className="hidden md:flex items-center gap-1.5 text-primary-foreground/50 text-xs absolute left-1/2 -translate-x-1/2">
-          {selectedEmpresa && (
-            <>
-              <Building2 size={11} />
-              <span className="text-primary-foreground/70 font-medium">{selectedEmpresa.nome}</span>
-              <span className="text-primary-foreground/30 mx-0.5">|</span>
-            </>
+        {/* Empresa Selector + Breadcrumb (desktop) */}
+        <div className="hidden md:flex items-center gap-2 text-primary-foreground/50 text-xs absolute left-1/2 -translate-x-1/2">
+          {empresas.length > 0 && (
+            <Popover open={empresaPopoverOpen} onOpenChange={setEmpresaPopoverOpen}>
+              <PopoverTrigger asChild>
+                <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-primary-foreground/10 hover:bg-primary-foreground/15 transition-colors text-primary-foreground/90 font-medium text-xs">
+                  <Building2 size={13} />
+                  <span className="max-w-[180px] truncate">{selectedEmpresa?.nome || 'Selecionar empresa'}</span>
+                  <ChevronsUpDown size={12} className="text-primary-foreground/50" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-1.5" align="center">
+                <p className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider px-2 py-1.5">Empresas</p>
+                {empresas.filter(e => !e.matriz_id).map(matriz => {
+                  const filiais = empresas.filter(e => e.matriz_id === matriz.id);
+                  return (
+                    <div key={matriz.id}>
+                      <button
+                        className={cn(
+                          "w-full flex items-center gap-2 px-2 py-2 rounded-md text-sm hover:bg-muted/60 transition-colors text-left",
+                          selectedEmpresa?.id === matriz.id && "bg-muted font-medium"
+                        )}
+                        onClick={() => { setSelectedEmpresa(matriz); setEmpresaPopoverOpen(false); }}
+                      >
+                        <Building2 size={14} className="shrink-0 text-muted-foreground" />
+                        <span className="flex-1 truncate">{matriz.nome}</span>
+                        {selectedEmpresa?.id === matriz.id && <Check size={14} className="text-primary shrink-0" />}
+                      </button>
+                      {filiais.map(filial => (
+                        <button
+                          key={filial.id}
+                          className={cn(
+                            "w-full flex items-center gap-2 pl-7 pr-2 py-1.5 rounded-md text-sm hover:bg-muted/60 transition-colors text-left",
+                            selectedEmpresa?.id === filial.id && "bg-muted font-medium"
+                          )}
+                          onClick={() => { setSelectedEmpresa(filial); setEmpresaPopoverOpen(false); }}
+                        >
+                          <span className="text-[10px] text-muted-foreground">↳</span>
+                          <span className="flex-1 truncate text-xs">{filial.nome}</span>
+                          {selectedEmpresa?.id === filial.id && <Check size={13} className="text-primary shrink-0" />}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })}
+              </PopoverContent>
+            </Popover>
           )}
+          <span className="text-primary-foreground/30">|</span>
           <span>Início</span>
           {currentPage && currentPage.path !== '/' && (
             <>

@@ -4,6 +4,7 @@ import { Package, ClipboardCheck, Users, AlertTriangle, TrendingUp, Clock, Arrow
 import { supabase } from '@/integrations/supabase/client';
 import { StatusBadge } from '@/components/StatusBadge';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { useEmpresa } from '@/contexts/EmpresaContext';
 
 interface RecentActivity {
   id: string;
@@ -26,6 +27,7 @@ interface ChartData {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { selectedEmpresa } = useEmpresa();
   const [stats, setStats] = useState({ estoqueBaixo: 0, entregasMes: 0, totalColabs: 0, totalProdutos: 0 });
   const [activities, setActivities] = useState<RecentActivity[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -34,8 +36,11 @@ export default function Dashboard() {
 
   useEffect(() => {
     const loadAll = async () => {
+      setLoading(true);
       // --- Stats ---
-      const { data: produtos } = await supabase.from('produtos').select('id, nome, estoque_minimo, data_validade, ca').eq('ativo', true);
+      let prodQuery = supabase.from('produtos').select('id, nome, estoque_minimo, data_validade, ca').eq('ativo', true);
+      if (selectedEmpresa) prodQuery = prodQuery.eq('empresa_id', selectedEmpresa.id);
+      const { data: produtos } = await prodQuery;
       let estoqueBaixo = 0;
       const alertsList: Alert[] = [];
 
@@ -66,11 +71,13 @@ export default function Dashboard() {
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-      const { count: entregasMes } = await supabase
-        .from('entregas_epi').select('id', { count: 'exact', head: true }).gte('data_hora', startOfMonth);
+      let entregaQuery = supabase.from('entregas_epi').select('id', { count: 'exact', head: true }).gte('data_hora', startOfMonth);
+      if (selectedEmpresa) entregaQuery = entregaQuery.eq('empresa_id', selectedEmpresa.id);
+      const { count: entregasMes } = await entregaQuery;
 
-      const { count: totalColabs } = await supabase
-        .from('colaboradores').select('id', { count: 'exact', head: true }).eq('ativo', true);
+      let colabQuery = supabase.from('colaboradores').select('id', { count: 'exact', head: true }).eq('ativo', true);
+      if (selectedEmpresa) colabQuery = colabQuery.eq('empresa_id', selectedEmpresa.id);
+      const { count: totalColabs } = await colabQuery;
 
       setStats({
         estoqueBaixo,
@@ -87,9 +94,10 @@ export default function Dashboard() {
         d.setDate(d.getDate() - i);
         const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString();
         const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).toISOString();
-        const { count } = await supabase
-          .from('entregas_epi').select('id', { count: 'exact', head: true })
+        let dayQuery = supabase.from('entregas_epi').select('id', { count: 'exact', head: true })
           .gte('data_hora', dayStart).lt('data_hora', dayEnd);
+        if (selectedEmpresa) dayQuery = dayQuery.eq('empresa_id', selectedEmpresa.id);
+        const { count } = await dayQuery;
         days.push({
           label: d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', ''),
           entregas: count || 0,
@@ -98,17 +106,17 @@ export default function Dashboard() {
       setChartData(days);
 
       // --- Recent activities ---
-      const { data: recentEntregas } = await supabase
-        .from('entregas_epi')
+      let recentEntregaQuery = supabase.from('entregas_epi')
         .select('id, data_hora, colaborador_id, colaboradores(nome)')
-        .order('data_hora', { ascending: false })
-        .limit(5);
+        .order('data_hora', { ascending: false }).limit(5);
+      if (selectedEmpresa) recentEntregaQuery = recentEntregaQuery.eq('empresa_id', selectedEmpresa.id);
+      const { data: recentEntregas } = await recentEntregaQuery;
 
-      const { data: recentMov } = await supabase
-        .from('movimentacoes_estoque')
+      let recentMovQuery = supabase.from('movimentacoes_estoque')
         .select('id, data_hora, tipo_movimentacao, quantidade, motivo, produtos(nome)')
-        .order('data_hora', { ascending: false })
-        .limit(5);
+        .order('data_hora', { ascending: false }).limit(5);
+      if (selectedEmpresa) recentMovQuery = recentMovQuery.eq('empresa_id', selectedEmpresa.id);
+      const { data: recentMov } = await recentMovQuery;
 
       const acts: RecentActivity[] = [];
       recentEntregas?.forEach((e: any) => {
@@ -133,7 +141,7 @@ export default function Dashboard() {
       setLoading(false);
     };
     loadAll();
-  }, []);
+  }, [selectedEmpresa]);
 
   const cards = [
     {
