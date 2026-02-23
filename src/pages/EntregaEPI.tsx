@@ -200,7 +200,7 @@ export default function EntregaEPI() {
           {/* Assinatura */}
           <div>
             <Label className="text-xs font-medium mb-2 block">Assinatura Digital *</Label>
-            <SignatureCanvas onSignatureChange={setAssinatura} width={Math.min(460, window.innerWidth - 80)} height={140} />
+            <SignatureCanvas onSignatureChange={setAssinatura} />
           </div>
 
           {/* Declaração */}
