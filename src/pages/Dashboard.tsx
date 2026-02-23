@@ -43,6 +43,7 @@ export default function Dashboard() {
   const [topEPCs, setTopEPCs] = useState<RankingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [rankingDays, setRankingDays] = useState(30);
+  const [chartDays, setChartDays] = useState(7);
   const [exporting, setExporting] = useState(false);
   const dashboardRef = useRef<HTMLDivElement>(null);
 
@@ -162,9 +163,9 @@ export default function Dashboard() {
       });
       setAlerts(alertsList);
 
-      // --- Chart: entregas últimos 7 dias ---
+      // --- Chart: entregas by period ---
       const days: ChartData[] = [];
-      for (let i = 6; i >= 0; i--) {
+      for (let i = chartDays - 1; i >= 0; i--) {
         const d = new Date();
         d.setDate(d.getDate() - i);
         const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString();
@@ -173,10 +174,10 @@ export default function Dashboard() {
           .gte('data_hora', dayStart).lt('data_hora', dayEnd);
         if (selectedEmpresa) dayQuery = dayQuery.eq('empresa_id', selectedEmpresa.id);
         const { count } = await dayQuery;
-        days.push({
-          label: d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', ''),
-          entregas: count || 0,
-        });
+        const labelFormat = chartDays <= 7
+          ? d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')
+          : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        days.push({ label: labelFormat, entregas: count || 0 });
       }
       setChartData(days);
 
@@ -302,7 +303,7 @@ export default function Dashboard() {
       setLoading(false);
     };
     loadAll();
-  }, [selectedEmpresa, rankingDays]);
+  }, [selectedEmpresa, rankingDays, chartDays]);
 
   const cards = [
     {
@@ -475,10 +476,16 @@ export default function Dashboard() {
         <div className="lg:col-span-3 bg-card rounded-lg border p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-semibold text-foreground">Entregas — Últimos 7 dias</h2>
+              <h2 className="text-sm font-semibold text-foreground">Entregas — Últimos {chartDays} dias</h2>
               <p className="text-xs text-muted-foreground mt-0.5">Quantidade de entregas de EPI por dia</p>
             </div>
-            <Calendar size={16} className="text-muted-foreground" />
+            <div className="flex gap-1">
+              {[7, 30, 90].map(d => (
+                <Button key={d} variant={chartDays === d ? 'default' : 'outline'} size="sm" className="h-7 text-[11px] px-2.5" onClick={() => setChartDays(d)}>
+                  {d}d
+                </Button>
+              ))}
+            </div>
           </div>
           <div className="h-48">
             {loading ? (
