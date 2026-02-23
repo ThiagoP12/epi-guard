@@ -18,6 +18,7 @@ import { format } from 'date-fns';
 interface Colaborador {
   id: string; nome: string; matricula: string; cpf: string | null; email: string | null;
   setor: string; funcao: string; empresa_id: string | null;
+  empresa?: { nome: string } | null;
 }
 interface Produto { id: string; nome: string; ca: string | null; tipo: string; saldo: number; }
 interface Solicitacao {
@@ -57,16 +58,17 @@ export default function PortalColaborador() {
       // Get colaborador linked to this user
       const { data: colab } = await supabase
         .from('colaboradores')
-        .select('id, nome, matricula, cpf, email, setor, funcao, empresa_id')
+        .select('id, nome, matricula, cpf, email, setor, funcao, empresa_id, empresas:empresa_id(nome)')
         .eq('user_id', user.id)
         .single();
 
       if (!colab) { setLoading(false); return; }
-      setColaborador(colab as Colaborador);
+      const colabData = { ...colab, empresa: (colab as any).empresas } as Colaborador;
+      setColaborador(colabData);
 
       // Load products with stock
-      let prodQuery = supabase.from('produtos').select('*').eq('ativo', true).eq('tipo', 'EPI').order('nome');
-      if (colab.empresa_id) prodQuery = prodQuery.eq('empresa_id', colab.empresa_id);
+      let prodQuery = supabase.from('produtos').select('*').eq('ativo', true).order('nome');
+      if (colabData.empresa_id) prodQuery = prodQuery.eq('empresa_id', colabData.empresa_id);
       const { data: prods } = await prodQuery;
       if (prods) {
         const withSaldo: Produto[] = [];
@@ -80,8 +82,8 @@ export default function PortalColaborador() {
       }
 
       // Load solicitations
-      await loadSolicitacoes(colab.id);
-      await loadEntregas(colab.id);
+      await loadSolicitacoes(colabData.id);
+      await loadEntregas(colabData.id);
       setLoading(false);
     };
     load();
@@ -255,7 +257,7 @@ export default function PortalColaborador() {
             <div><span className="text-muted-foreground">Nome:</span><p className="font-medium">{colaborador.nome}</p></div>
             <div><span className="text-muted-foreground">Matrícula:</span><p className="font-medium">{colaborador.matricula}</p></div>
             <div><span className="text-muted-foreground">CPF:</span><p className="font-medium font-mono">{colaborador.cpf || '—'}</p></div>
-            <div><span className="text-muted-foreground">E-mail:</span><p className="font-medium">{colaborador.email || '—'}</p></div>
+            <div><span className="text-muted-foreground">Revenda:</span><p className="font-medium">{colaborador.empresa?.nome || '—'}</p></div>
           </div>
         </div>
 
@@ -324,7 +326,7 @@ export default function PortalColaborador() {
             </div>
 
             <div>
-              <Label className="text-xs font-medium mb-2 block">Selfie de Verificação *</Label>
+              <Label className="text-xs font-medium mb-2 block">Selfie do Colaborador *</Label>
               <SelfieCapture onCaptureChange={setSelfie} />
             </div>
 
