@@ -16,12 +16,14 @@ import ControleEPC from "./pages/ControleEPC";
 import Relatorios from "./pages/Relatorios";
 import Configuracoes from "./pages/Configuracoes";
 import Revendas from "./pages/Revendas";
+import Solicitacoes from "./pages/Solicitacoes";
+import PortalColaborador from "./pages/PortalColaborador";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
 function ProtectedRoutes() {
-  const { user, loading } = useAuth();
+  const { user, loading, role } = useAuth();
   
   if (loading) {
     return (
@@ -36,6 +38,11 @@ function ProtectedRoutes() {
 
   if (!user) return <Navigate to="/login" replace />;
 
+  // Colaborador role goes to portal
+  if (role === 'colaborador') {
+    return <PortalColaborador />;
+  }
+
   return (
     <EmpresaProvider>
       <Routes>
@@ -49,13 +56,13 @@ function ProtectedRoutes() {
           <Route path="/relatorios" element={<Relatorios />} />
           <Route path="/configuracoes" element={<Configuracoes />} />
           <Route path="/revendas" element={<Revendas />} />
+          <Route path="/solicitacoes" element={<Solicitacoes />} />
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>
     </EmpresaProvider>
   );
 }
-
 function LoginRoute() {
   const { user, loading } = useAuth();
   if (loading) return null;
