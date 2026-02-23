@@ -329,14 +329,22 @@ export default function Colaboradores() {
         throw new Error('Colunas obrigatórias não encontradas: nome, matricula, setor, funcao.');
       }
 
-      const rows = lines.slice(1).map(line => {
+      const errors: string[] = [];
+      const rows = lines.slice(1).map((line, idx) => {
         const cols = line.split(separator).map(c => c.replace(/"/g, '').trim());
+        const cpfRaw = iCpf >= 0 ? cols[iCpf] || null : null;
+        const cpfDigits = cpfRaw ? cpfRaw.replace(/\D/g, '') : null;
+
+        if (cpfDigits && !validateCPF(cpfDigits)) {
+          errors.push(`Linha ${idx + 2}: CPF inválido (${cpfRaw})`);
+        }
+
         return {
           nome: cols[iNome] || '',
           matricula: cols[iMatricula] || '',
           setor: cols[iSetor] || '',
           funcao: cols[iFuncao] || '',
-          cpf: iCpf >= 0 ? cols[iCpf] || null : null,
+          cpf: cpfDigits || null,
           email: iEmail >= 0 ? cols[iEmail] || null : null,
           data_admissao: iAdmissao >= 0 && cols[iAdmissao] ? cols[iAdmissao] : new Date().toISOString().slice(0, 10),
           tamanho_uniforme: iUniforme >= 0 ? cols[iUniforme] || null : null,
@@ -347,6 +355,39 @@ export default function Colaboradores() {
       }).filter(r => r.nome && r.matricula && r.setor && r.funcao);
 
       if (rows.length === 0) throw new Error('Nenhuma linha válida encontrada.');
+
+      // Check for duplicates within the CSV itself
+      const csvMatriculas = new Set<string>();
+      const csvCpfs = new Set<string>();
+      for (const [i, r] of rows.entries()) {
+        if (csvMatriculas.has(r.matricula)) {
+          errors.push(`Linha ${i + 2}: Matrícula "${r.matricula}" duplicada no CSV`);
+        }
+        csvMatriculas.add(r.matricula);
+        if (r.cpf) {
+          if (csvCpfs.has(r.cpf)) {
+            errors.push(`Linha ${i + 2}: CPF "${r.cpf}" duplicado no CSV`);
+          }
+          csvCpfs.add(r.cpf);
+        }
+      }
+
+      // Check against existing records in the database
+      const existingMatriculas = new Set(colaboradores.map(c => c.matricula));
+      const existingCpfs = new Set(colaboradores.filter(c => c.cpf).map(c => c.cpf!.replace(/\D/g, '')));
+
+      for (const [i, r] of rows.entries()) {
+        if (existingMatriculas.has(r.matricula)) {
+          errors.push(`Linha ${i + 2}: Matrícula "${r.matricula}" já existe no sistema`);
+        }
+        if (r.cpf && existingCpfs.has(r.cpf)) {
+          errors.push(`Linha ${i + 2}: CPF "${r.cpf}" já existe no sistema`);
+        }
+      }
+
+      if (errors.length > 0) {
+        throw new Error(`Erros encontrados:\n${errors.slice(0, 10).join('\n')}${errors.length > 10 ? `\n...e mais ${errors.length - 10} erro(s)` : ''}`);
+      }
 
       const { error } = await supabase.from('colaboradores').insert(rows);
       if (error) throw error;
