@@ -1,26 +1,34 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Filter, Plus, Minus, Edit } from 'lucide-react';
-import { produtos, type Produto } from '@/data/mockData';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
 
-function getStatus(p: Produto): { status: 'ok' | 'warning' | 'danger'; label: string } {
+interface ProdutoComSaldo {
+  id: string;
+  codigo_interno: string;
+  nome: string;
+  tipo: string;
+  ca: string | null;
+  tamanho: string | null;
+  estoque_minimo: number;
+  data_validade: string | null;
+  saldo: number;
+  marca: string | null;
+  fornecedor: string | null;
+  localizacao_fisica: string | null;
+  custo_unitario: number;
+  ativo: boolean;
+}
+
+function getStatus(p: ProdutoComSaldo): { status: 'ok' | 'warning' | 'danger'; label: string } {
   if (p.saldo < p.estoque_minimo) return { status: 'danger', label: 'Abaixo do mínimo' };
   if (p.data_validade) {
     const dias = Math.ceil((new Date(p.data_validade).getTime() - Date.now()) / 86400000);
@@ -31,15 +39,35 @@ function getStatus(p: Produto): { status: 'ok' | 'warning' | 'danger'; label: st
 }
 
 export default function Estoque() {
+  const [produtos, setProdutos] = useState<ProdutoComSaldo[]>([]);
   const [search, setSearch] = useState('');
-  const [tipoFilter, setTipoFilter] = useState<string>('todos');
-  const [statusFilter, setStatusFilter] = useState<string>('todos');
+  const [tipoFilter, setTipoFilter] = useState('todos');
+  const [statusFilter, setStatusFilter] = useState('todos');
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'entrada' | 'saida' | 'editar'>('entrada');
-  const [selectedProduct, setSelectedProduct] = useState<Produto | null>(null);
+  const [selected, setSelected] = useState<ProdutoComSaldo | null>(null);
+  const [qty, setQty] = useState(1);
+  const [nf, setNf] = useState('');
+  const [obs, setObs] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const loadProdutos = async () => {
+    const { data } = await supabase.from('produtos').select('*').eq('ativo', true).order('codigo_interno');
+    if (!data) return;
+
+    const withSaldo: ProdutoComSaldo[] = [];
+    for (const p of data) {
+      const { data: saldo } = await supabase.rpc('get_saldo_produto', { p_produto_id: p.id });
+      withSaldo.push({ ...p, saldo: typeof saldo === 'number' ? saldo : 0 });
+    }
+    setProdutos(withSaldo);
+  };
+
+  useEffect(() => { loadProdutos(); }, []);
 
   const filtered = produtos.filter((p) => {
-    if (!p.ativo) return false;
     const s = search.toLowerCase();
     if (s && !p.nome.toLowerCase().includes(s) && !p.codigo_interno.toLowerCase().includes(s) && !(p.ca || '').toLowerCase().includes(s)) return false;
     if (tipoFilter !== 'todos' && p.tipo !== tipoFilter) return false;
@@ -52,35 +80,55 @@ export default function Estoque() {
     return true;
   });
 
-  const openModal = (type: 'entrada' | 'saida' | 'editar', product: Produto) => {
+  const openModal = (type: 'entrada' | 'saida' | 'editar', product: ProdutoComSaldo) => {
     setModalType(type);
-    setSelectedProduct(product);
+    setSelected(product);
+    setQty(1);
+    setNf('');
+    setObs('');
     setModalOpen(true);
+  };
+
+  const handleMovimentacao = async () => {
+    if (!selected || !user || qty < 1) return;
+    if (modalType === 'saida' && qty > selected.saldo) {
+      toast({ title: 'Erro', description: 'Saldo insuficiente.', variant: 'destructive' });
+      return;
+    }
+    setSubmitting(true);
+
+    const { error } = await supabase.from('movimentacoes_estoque').insert({
+      produto_id: selected.id,
+      tipo_movimentacao: modalType === 'entrada' ? 'ENTRADA' : 'SAIDA',
+      quantidade: qty,
+      motivo: modalType === 'entrada' ? 'Entrada manual' : 'Saída manual',
+      usuario_id: user.id,
+      referencia_nf: nf || null,
+      observacao: obs || null,
+    });
+
+    setSubmitting(false);
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Sucesso', description: `${modalType === 'entrada' ? 'Entrada' : 'Saída'} registrada.` });
+      setModalOpen(false);
+      loadProdutos();
+    }
   };
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-5">
-        <h1 className="text-xl font-semibold text-foreground">Estoque</h1>
-      </div>
+      <h1 className="text-xl font-semibold text-foreground mb-5">Estoque</h1>
 
-      {/* Filters */}
       <div className="bg-card rounded-lg border p-4 mb-4">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nome, código ou CA..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
+            <Input placeholder="Buscar por nome, código ou CA..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
           <Select value={tipoFilter} onValueChange={setTipoFilter}>
-            <SelectTrigger className="w-full sm:w-36">
-              <Filter size={14} className="mr-1" />
-              <SelectValue placeholder="Tipo" />
-            </SelectTrigger>
+            <SelectTrigger className="w-full sm:w-36"><Filter size={14} className="mr-1" /><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos</SelectItem>
               <SelectItem value="EPI">EPI</SelectItem>
@@ -88,9 +136,7 @@ export default function Estoque() {
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-44">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
+            <SelectTrigger className="w-full sm:w-44"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos</SelectItem>
               <SelectItem value="normal">Normal</SelectItem>
@@ -101,7 +147,6 @@ export default function Estoque() {
         </div>
       </div>
 
-      {/* Table */}
       <div className="bg-card rounded-lg border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -125,21 +170,14 @@ export default function Estoque() {
                   <tr key={p.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3 font-mono text-xs">{p.codigo_interno}</td>
                     <td className="px-4 py-3 font-medium">{p.nome}</td>
-                    <td className="px-4 py-3 hidden sm:table-cell">
-                      <span className="text-xs bg-muted px-2 py-0.5 rounded">{p.tipo}</span>
-                    </td>
+                    <td className="px-4 py-3 hidden sm:table-cell"><span className="text-xs bg-muted px-2 py-0.5 rounded">{p.tipo}</span></td>
                     <td className="px-4 py-3 hidden md:table-cell text-muted-foreground">{p.ca || '—'}</td>
-                    <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground">{p.tamanho}</td>
+                    <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground">{p.tamanho || '—'}</td>
                     <td className="px-4 py-3 text-right font-medium">{p.saldo}</td>
                     <td className="px-4 py-3 text-right hidden sm:table-cell text-muted-foreground">{p.estoque_minimo}</td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={st.status} label={st.label} />
-                    </td>
+                    <td className="px-4 py-3"><StatusBadge status={st.status} label={st.label} /></td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openModal('editar', p)}>
-                          <Edit size={13} className="mr-1" /> Editar
-                        </Button>
                         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-status-ok" onClick={() => openModal('entrada', p)}>
                           <Plus size={13} className="mr-1" /> Entrada
                         </Button>
@@ -154,63 +192,27 @@ export default function Estoque() {
             </tbody>
           </table>
         </div>
-        {filtered.length === 0 && (
-          <div className="py-12 text-center text-muted-foreground">Nenhum produto encontrado.</div>
-        )}
+        {filtered.length === 0 && <div className="py-12 text-center text-muted-foreground">Nenhum produto encontrado.</div>}
       </div>
 
-      {/* Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>
-              {modalType === 'entrada' && 'Entrada de Estoque'}
-              {modalType === 'saida' && 'Saída de Estoque'}
-              {modalType === 'editar' && 'Editar Produto'}
-            </DialogTitle>
+            <DialogTitle>{modalType === 'entrada' ? 'Entrada de Estoque' : 'Saída de Estoque'}</DialogTitle>
           </DialogHeader>
-          {selectedProduct && (
+          {selected && (
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                {selectedProduct.nome} ({selectedProduct.codigo_interno})
-              </p>
-              {modalType !== 'editar' ? (
-                <>
-                  <div>
-                    <Label>Quantidade</Label>
-                    <Input type="number" min={1} defaultValue={1} className="mt-1" />
-                  </div>
-                  {modalType === 'entrada' && (
-                    <div>
-                      <Label>Referência NF</Label>
-                      <Input placeholder="Nº da nota fiscal" className="mt-1" />
-                    </div>
-                  )}
-                  <div>
-                    <Label>Observação</Label>
-                    <Textarea placeholder="Observação (opcional)" className="mt-1" rows={2} />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div>
-                    <Label>Nome</Label>
-                    <Input defaultValue={selectedProduct.nome} className="mt-1" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label>CA</Label>
-                      <Input defaultValue={selectedProduct.ca || ''} className="mt-1" />
-                    </div>
-                    <div>
-                      <Label>Estoque Mínimo</Label>
-                      <Input type="number" defaultValue={selectedProduct.estoque_minimo} className="mt-1" />
-                    </div>
-                  </div>
-                </>
+              <p className="text-sm text-muted-foreground">{selected.nome} ({selected.codigo_interno}) — Saldo: {selected.saldo}</p>
+              <div>
+                <Label>Quantidade</Label>
+                <Input type="number" min={1} max={modalType === 'saida' ? selected.saldo : undefined} value={qty} onChange={(e) => setQty(Number(e.target.value))} className="mt-1" />
+              </div>
+              {modalType === 'entrada' && (
+                <div><Label>Referência NF</Label><Input value={nf} onChange={(e) => setNf(e.target.value)} placeholder="Nº da nota fiscal" className="mt-1" /></div>
               )}
-              <Button className="w-full">
-                {modalType === 'editar' ? 'Salvar' : 'Confirmar'}
+              <div><Label>Observação</Label><Textarea value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Observação (opcional)" className="mt-1" rows={2} /></div>
+              <Button className="w-full" onClick={handleMovimentacao} disabled={submitting}>
+                {submitting ? 'Registrando...' : 'Confirmar'}
               </Button>
             </div>
           )}

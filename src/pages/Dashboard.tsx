@@ -1,146 +1,96 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Package,
-  AlertTriangle,
-  Shield,
-  ClipboardCheck,
-  TrendingUp,
-  Users,
-} from 'lucide-react';
-import { dashboardStats, alertas } from '@/data/mockData';
-import { StatusBadge } from '@/components/StatusBadge';
-
-const severityLabel = { ok: 'Normal', warning: 'Atenção', danger: 'Urgente' };
-
-function DashboardCard({
-  title,
-  total,
-  severidade,
-  icon: Icon,
-  onClick,
-}: {
-  title: string;
-  total: number;
-  severidade: 'ok' | 'warning' | 'danger';
-  icon: React.ElementType;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="card-interactive bg-card rounded-lg border p-5 text-left w-full"
-    >
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">{title}</p>
-          <p className="text-3xl font-bold mt-1 text-foreground">{total}</p>
-        </div>
-        <div className={`p-2.5 rounded-lg ${
-          severidade === 'ok' ? 'bg-status-ok-bg' :
-          severidade === 'warning' ? 'bg-status-warning-bg' : 'bg-status-danger-bg'
-        }`}>
-          <Icon size={20} className={
-            severidade === 'ok' ? 'text-status-ok' :
-            severidade === 'warning' ? 'text-status-warning' : 'text-status-danger'
-          } />
-        </div>
-      </div>
-      <div className="mt-3">
-        <StatusBadge status={severidade} label={severityLabel[severidade]} />
-      </div>
-    </button>
-  );
-}
+import { Package, ClipboardCheck, TrendingUp, Users } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [stats, setStats] = useState({ estoqueBaixo: 0, entregasMes: 0, totalColabs: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadStats = async () => {
+      // Get products with stock below minimum
+      const { data: produtos } = await supabase.from('produtos').select('id, estoque_minimo').eq('ativo', true);
+      let estoqueBaixo = 0;
+      if (produtos) {
+        for (const p of produtos) {
+          const { data } = await supabase.rpc('get_saldo_produto', { p_produto_id: p.id });
+          if (typeof data === 'number' && data < p.estoque_minimo) estoqueBaixo++;
+        }
+      }
+
+      // Get deliveries this month
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const { count: entregasMes } = await supabase
+        .from('entregas_epi')
+        .select('id', { count: 'exact', head: true })
+        .gte('data_hora', startOfMonth);
+
+      const { count: totalColabs } = await supabase
+        .from('colaboradores')
+        .select('id', { count: 'exact', head: true })
+        .eq('ativo', true);
+
+      setStats({ estoqueBaixo, entregasMes: entregasMes || 0, totalColabs: totalColabs || 0 });
+      setLoading(false);
+    };
+    loadStats();
+  }, []);
+
+  const cards = [
+    {
+      title: 'Estoque Baixo',
+      total: stats.estoqueBaixo,
+      severity: stats.estoqueBaixo > 0 ? 'danger' : 'ok',
+      icon: Package,
+      onClick: () => navigate('/estoque?status=baixo'),
+    },
+    {
+      title: 'Entregas do Mês',
+      total: stats.entregasMes,
+      severity: 'ok',
+      icon: ClipboardCheck,
+      onClick: () => navigate('/entrega-epi'),
+    },
+    {
+      title: 'Colaboradores Ativos',
+      total: stats.totalColabs,
+      severity: 'ok',
+      icon: Users,
+      onClick: () => navigate('/colaboradores'),
+    },
+  ];
 
   return (
     <div>
       <h1 className="text-xl font-semibold text-foreground mb-5">Dashboard</h1>
-
-      {/* Main Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <DashboardCard
-          title="Estoque Baixo"
-          total={dashboardStats.estoqueBaixo.total}
-          severidade={dashboardStats.estoqueBaixo.severidade}
-          icon={Package}
-          onClick={() => navigate('/estoque?status=baixo')}
-        />
-        <DashboardCard
-          title="EPIs Vencendo"
-          total={dashboardStats.episVencendo.total}
-          severidade={dashboardStats.episVencendo.severidade}
-          icon={AlertTriangle}
-          onClick={() => navigate('/estoque?status=vencendo')}
-        />
-        <DashboardCard
-          title="EPCs Pendentes"
-          total={dashboardStats.epcsPendentes.total}
-          severidade={dashboardStats.epcsPendentes.severidade}
-          icon={Shield}
-          onClick={() => navigate('/controle-epc?status=pendente')}
-        />
-        <DashboardCard
-          title="Entregas do Mês"
-          total={dashboardStats.entregasMes.total}
-          severidade={dashboardStats.entregasMes.severidade}
-          icon={ClipboardCheck}
-          onClick={() => navigate('/entrega-epi')}
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        {cards.map((card) => (
+          <button key={card.title} onClick={card.onClick} className="card-interactive bg-card rounded-lg border p-5 text-left w-full">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">{card.title}</p>
+                <p className="text-3xl font-bold mt-1 text-foreground">{loading ? '...' : card.total}</p>
+              </div>
+              <div className={`p-2.5 rounded-lg ${
+                card.severity === 'ok' ? 'bg-status-ok-bg' : 'bg-status-danger-bg'
+              }`}>
+                <card.icon size={20} className={
+                  card.severity === 'ok' ? 'text-status-ok' : 'text-status-danger'
+                } />
+              </div>
+            </div>
+          </button>
+        ))}
       </div>
 
-      {/* Differential indicators */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-        <div className="bg-card rounded-lg border p-5">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-lg bg-status-ok-bg">
-              <TrendingUp size={18} className="text-status-ok" />
-            </div>
-            <p className="text-sm text-muted-foreground">Dias sem Acidente</p>
-          </div>
-          <p className="text-4xl font-bold text-foreground">{dashboardStats.diasSemAcidente}</p>
-          <p className="text-xs text-muted-foreground mt-1">Último acidente: 18/10/2025</p>
-        </div>
-        <div className="bg-card rounded-lg border p-5">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <Users size={18} className="text-primary" />
-            </div>
-            <p className="text-sm text-muted-foreground">Colaboradores com EPI Atualizado</p>
-          </div>
-          <div className="flex items-end gap-2">
-            <p className="text-4xl font-bold text-foreground">{dashboardStats.percentualEpiAtualizado}%</p>
-            <p className="text-sm text-muted-foreground mb-1">6 de 8</p>
-          </div>
-          <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full bg-primary rounded-full transition-all"
-              style={{ width: `${dashboardStats.percentualEpiAtualizado}%` }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Recent alerts */}
-      <div className="bg-card rounded-lg border">
-        <div className="px-5 py-3.5 border-b flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-foreground">Alertas Recentes</h2>
-          <span className="text-xs text-muted-foreground">{alertas.length} alertas</span>
-        </div>
-        <div className="divide-y">
-          {alertas.slice(0, 6).map((alerta) => (
-            <div key={alerta.id} className="px-5 py-3 flex items-center gap-3">
-              <span className={`h-2 w-2 rounded-full shrink-0 ${
-                alerta.severidade === 'danger' ? 'bg-status-danger' :
-                alerta.severidade === 'warning' ? 'bg-status-warning' : 'bg-status-ok'
-              }`} />
-              <p className="text-sm text-foreground flex-1">{alerta.mensagem}</p>
-              <span className="text-xs text-muted-foreground shrink-0">{alerta.data}</span>
-            </div>
-          ))}
-        </div>
+      <div className="bg-card rounded-lg border p-6 text-center">
+        <TrendingUp size={32} className="mx-auto text-muted-foreground/30 mb-2" />
+        <p className="text-sm text-muted-foreground">
+          Indicadores avançados (Dias sem acidente, % EPI atualizado, EPCs pendentes) serão adicionados na Fase 2.
+        </p>
       </div>
     </div>
   );
