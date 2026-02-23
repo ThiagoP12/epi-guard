@@ -112,7 +112,7 @@ export default function Colaboradores() {
   const { toast } = useToast();
   const { selectedEmpresa } = useEmpresa();
   const { role } = useAuth();
-  const isAdmin = role === 'admin';
+  const isAdmin = role === 'admin' || role === 'super_admin';
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
 
