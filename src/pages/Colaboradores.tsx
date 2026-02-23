@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, ClipboardCheck, Plus, UserCheck } from 'lucide-react';
+import { Search, ClipboardCheck, Plus, UserCheck, History, X, FileDown, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,15 @@ interface Colaborador {
   ativo: boolean;
 }
 
+interface EntregaHistorico {
+  id: string;
+  data_hora: string;
+  motivo: string;
+  assinatura_base64: string;
+  observacao: string | null;
+  itens: { nome_snapshot: string; ca_snapshot: string | null; quantidade: number; validade_snapshot: string | null }[];
+}
+
 export default function Colaboradores() {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [search, setSearch] = useState('');
@@ -27,6 +36,13 @@ export default function Colaboradores() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Histórico state
+  const [historicoOpen, setHistoricoOpen] = useState(false);
+  const [historicoColab, setHistoricoColab] = useState<Colaborador | null>(null);
+  const [entregas, setEntregas] = useState<EntregaHistorico[]>([]);
+  const [loadingHistorico, setLoadingHistorico] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -61,6 +77,58 @@ export default function Colaboradores() {
       setForm({ nome: '', matricula: '', setor: '', funcao: '', email: '' });
       load();
     }
+  };
+
+  const openHistorico = async (colab: Colaborador) => {
+    setHistoricoColab(colab);
+    setHistoricoOpen(true);
+    setLoadingHistorico(true);
+    setEntregas([]);
+
+    const { data: entregasData } = await supabase
+      .from('entregas_epi')
+      .select('id, data_hora, motivo, assinatura_base64, observacao')
+      .eq('colaborador_id', colab.id)
+      .order('data_hora', { ascending: false });
+
+    if (entregasData && entregasData.length > 0) {
+      const entregaIds = entregasData.map(e => e.id);
+      const { data: itensData } = await supabase
+        .from('entrega_epi_itens')
+        .select('entrega_id, nome_snapshot, ca_snapshot, quantidade, validade_snapshot')
+        .in('entrega_id', entregaIds);
+
+      const result: EntregaHistorico[] = entregasData.map(e => ({
+        ...e,
+        itens: (itensData || []).filter(i => i.entrega_id === e.id),
+      }));
+      setEntregas(result);
+    }
+
+    setLoadingHistorico(false);
+  };
+
+  const handleDownloadPdf = async (entregaId: string) => {
+    setDownloadingPdf(entregaId);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-nr06-pdf', {
+        body: { entregaId },
+      });
+      if (error) throw error;
+      if (data?.url) {
+        window.open(data.url, '_blank');
+      }
+    } catch (err: any) {
+      toast({ title: 'Erro ao gerar PDF', description: err.message, variant: 'destructive' });
+    }
+    setDownloadingPdf(null);
+  };
+
+  const formatDate = (iso: string) => {
+    return new Date(iso).toLocaleDateString('pt-BR', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
   };
 
   return (
@@ -121,11 +189,19 @@ export default function Colaboradores() {
                   </td>
                   <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground text-xs">{c.funcao}</td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center justify-end">
+                    <div className="flex items-center justify-end gap-0.5 opacity-70 group-hover:opacity-100 transition-opacity">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 px-2.5 text-xs opacity-70 group-hover:opacity-100 transition-opacity"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => openHistorico(c)}
+                      >
+                        <History size={13} className="mr-1" /> Histórico
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2.5 text-xs"
                         onClick={() => navigate(`/entrega-epi?colaborador=${c.id}`)}
                       >
                         <ClipboardCheck size={13} className="mr-1" /> Entrega
@@ -146,6 +222,7 @@ export default function Colaboradores() {
         )}
       </div>
 
+      {/* Modal Novo Colaborador */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Novo Colaborador</DialogTitle></DialogHeader>
@@ -182,6 +259,123 @@ export default function Colaboradores() {
                 </span>
               ) : 'Cadastrar'}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Histórico de Entregas */}
+      <Dialog open={historicoOpen} onOpenChange={setHistoricoOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History size={18} />
+              Histórico de Entregas
+            </DialogTitle>
+            {historicoColab && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {historicoColab.nome} — {historicoColab.matricula} • {historicoColab.setor}
+              </p>
+            )}
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto space-y-3 pr-1 -mr-1">
+            {loadingHistorico ? (
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="rounded-lg border p-4 space-y-2">
+                    <div className="h-4 w-40 rounded skeleton-shimmer" />
+                    <div className="h-3 w-60 rounded skeleton-shimmer" />
+                    <div className="h-16 w-32 rounded skeleton-shimmer" />
+                  </div>
+                ))}
+              </div>
+            ) : entregas.length === 0 ? (
+              <div className="py-12 text-center">
+                <ClipboardCheck size={32} className="mx-auto text-muted-foreground/25 mb-3" />
+                <p className="text-sm text-muted-foreground">Nenhuma entrega registrada.</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">As entregas de EPI/EPC aparecerão aqui.</p>
+              </div>
+            ) : (
+              entregas.map((entrega) => (
+                <div key={entrega.id} className="rounded-lg border bg-card p-4 space-y-3 animate-fade-in">
+                  {/* Header */}
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        {formatDate(entrega.data_hora)}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Motivo: <span className="font-medium">{entrega.motivo}</span>
+                        {entrega.observacao && <span> — {entrega.observacao}</span>}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-[10px] gap-1 shrink-0"
+                      onClick={() => handleDownloadPdf(entrega.id)}
+                      disabled={downloadingPdf === entrega.id}
+                    >
+                      {downloadingPdf === entrega.id ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <FileDown size={12} />
+                      )}
+                      NR-06
+                    </Button>
+                  </div>
+
+                  {/* Itens */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b bg-muted/30">
+                          <th className="text-left px-2 py-1.5 font-medium text-muted-foreground uppercase tracking-wider">EPI/EPC</th>
+                          <th className="text-left px-2 py-1.5 font-medium text-muted-foreground uppercase tracking-wider">C.A.</th>
+                          <th className="text-center px-2 py-1.5 font-medium text-muted-foreground uppercase tracking-wider">Qtde</th>
+                          <th className="text-left px-2 py-1.5 font-medium text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Validade</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {entrega.itens.map((item, idx) => (
+                          <tr key={idx}>
+                            <td className="px-2 py-1.5 font-medium">{item.nome_snapshot}</td>
+                            <td className="px-2 py-1.5 text-muted-foreground">{item.ca_snapshot || '—'}</td>
+                            <td className="px-2 py-1.5 text-center font-semibold">{item.quantidade}</td>
+                            <td className="px-2 py-1.5 text-muted-foreground hidden sm:table-cell">
+                              {item.validade_snapshot
+                                ? new Date(item.validade_snapshot + 'T12:00:00').toLocaleDateString('pt-BR')
+                                : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Assinatura */}
+                  <div className="pt-2 border-t">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 font-medium">Assinatura Digital</p>
+                    {entrega.assinatura_base64 ? (
+                      <div className="bg-muted/30 rounded-lg p-2 inline-block border border-dashed">
+                        <img
+                          src={entrega.assinatura_base64}
+                          alt="Assinatura digital"
+                          className="max-w-[200px] max-h-[60px] object-contain"
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground/50 italic">Sem assinatura</p>
+                    )}
+                  </div>
+
+                  {/* Código */}
+                  <p className="text-[9px] text-muted-foreground/40 font-mono">
+                    ID: {entrega.id.substring(0, 8).toUpperCase()}
+                  </p>
+                </div>
+              ))
+            )}
           </div>
         </DialogContent>
       </Dialog>
