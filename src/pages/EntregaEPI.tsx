@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { CheckCircle, FileDown, Loader2 } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { CheckCircle, FileDown, Loader2, Search, Package, User, ClipboardList, PenLine, ChevronRight, ChevronLeft, Trash2, Plus, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/input';
@@ -11,59 +11,54 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import SignatureCanvas from '@/components/SignatureCanvas';
 import { useEmpresa } from '@/contexts/EmpresaContext';
+import { cn } from '@/lib/utils';
 
 const motivos = ['Primeira entrega', 'Troca por desgaste', 'Perda', 'Danificado', 'Outro'] as const;
 
 interface Colaborador { id: string; nome: string; matricula: string; cpf: string | null; email: string | null; setor: string; funcao: string; }
 interface Produto { id: string; nome: string; ca: string | null; tipo: string; saldo: number; data_validade: string | null; custo_unitario: number; }
+interface CartItem { produto: Produto; quantidade: number; }
+
+const STEPS = [
+  { id: 1, label: 'Colaborador', icon: User },
+  { id: 2, label: 'Itens', icon: Package },
+  { id: 3, label: 'Revisão & Assinatura', icon: PenLine },
+];
 
 export default function EntregaEPI() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { selectedEmpresa } = useEmpresa();
+
+  const [step, setStep] = useState(1);
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Step 1 - Colaborador
   const [colaboradorId, setColaboradorId] = useState('');
-  const [produtoId, setProdutoId] = useState('');
-  const [quantidade, setQuantidade] = useState(1);
+  const [colabSearch, setColabSearch] = useState('');
+
+  // Step 2 - Itens (multi-item cart)
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [addProdutoId, setAddProdutoId] = useState('');
+  const [addQty, setAddQty] = useState(1);
+  const [prodSearch, setProdSearch] = useState('');
   const [motivo, setMotivo] = useState('');
   const [observacao, setObservacao] = useState('');
+
+  // Step 3 - Assinatura
   const [assinatura, setAssinatura] = useState<string | null>(null);
   const [declaracao, setDeclaracao] = useState(false);
+
+  // Submit
   const [submitting, setSubmitting] = useState(false);
   const [lastEntregaId, setLastEntregaId] = useState<string | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
-  const handleDownloadPdf = async (entregaId: string) => {
-    setDownloadingPdf(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('generate-nr06-pdf', {
-        body: { entregaId },
-      });
-      if (error) throw error;
-      if (!data?.url) throw new Error('URL do documento não retornada');
-
-      // Open the signed URL from Supabase Storage
-      const win = window.open(data.url, '_blank');
-      if (!win) {
-        // Fallback: create a link and click it
-        const a = document.createElement('a');
-        a.href = data.url;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      }
-    } catch (err: any) {
-      toast({ title: 'Erro ao gerar PDF', description: err.message, variant: 'destructive' });
-    }
-    setDownloadingPdf(false);
-  };
-
-  const { selectedEmpresa } = useEmpresa();
-
   useEffect(() => {
     const load = async () => {
+      setLoading(true);
       let colabQuery = supabase.from('colaboradores').select('id, nome, matricula, cpf, email, setor, funcao').eq('ativo', true).order('nome');
       if (selectedEmpresa) colabQuery = colabQuery.eq('empresa_id', selectedEmpresa.id);
       const { data: colabs } = await colabQuery;
@@ -82,26 +77,85 @@ export default function EntregaEPI() {
         }
         setProdutos(withSaldo);
       }
+      setLoading(false);
     };
     load();
   }, [selectedEmpresa]);
 
-  const selectedProduct = produtos.find(p => p.id === produtoId);
+  const selectedColab = colaboradores.find(c => c.id === colaboradorId);
+
+  const filteredColabs = useMemo(() => {
+    if (!colabSearch) return colaboradores;
+    const s = colabSearch.toLowerCase();
+    return colaboradores.filter(c => c.nome.toLowerCase().includes(s) || c.matricula.toLowerCase().includes(s) || c.setor.toLowerCase().includes(s));
+  }, [colaboradores, colabSearch]);
+
+  const availableProducts = useMemo(() => {
+    const cartIds = new Set(cart.map(i => i.produto.id));
+    let list = produtos.filter(p => !cartIds.has(p.id));
+    if (prodSearch) {
+      const s = prodSearch.toLowerCase();
+      list = list.filter(p => p.nome.toLowerCase().includes(s) || (p.ca || '').toLowerCase().includes(s));
+    }
+    return list;
+  }, [produtos, cart, prodSearch]);
+
+  const cartTotal = cart.reduce((sum, i) => sum + i.quantidade * i.produto.custo_unitario, 0);
+
+  const addToCart = () => {
+    const prod = produtos.find(p => p.id === addProdutoId);
+    if (!prod) return;
+    if (addQty > prod.saldo) {
+      toast({ title: 'Saldo insuficiente', description: `Disponível: ${prod.saldo}`, variant: 'destructive' });
+      return;
+    }
+    setCart(prev => [...prev, { produto: prod, quantidade: addQty }]);
+    setAddProdutoId('');
+    setAddQty(1);
+    setProdSearch('');
+  };
+
+  const removeFromCart = (prodId: string) => setCart(prev => prev.filter(i => i.produto.id !== prodId));
+
+  const updateCartQty = (prodId: string, qty: number) => {
+    setCart(prev => prev.map(i => i.produto.id === prodId ? { ...i, quantidade: Math.max(1, Math.min(qty, i.produto.saldo)) } : i));
+  };
+
+  const canAdvance = (s: number) => {
+    if (s === 1) return !!colaboradorId;
+    if (s === 2) return cart.length > 0 && !!motivo;
+    return true;
+  };
+
+  const handleDownloadPdf = async (entregaId: string) => {
+    setDownloadingPdf(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-nr06-pdf', { body: { entregaId } });
+      if (error) throw error;
+      if (!data?.url) throw new Error('URL do documento não retornada');
+      const win = window.open(data.url, '_blank');
+      if (!win) {
+        const a = document.createElement('a');
+        a.href = data.url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    } catch (err: any) {
+      toast({ title: 'Erro ao gerar PDF', description: err.message, variant: 'destructive' });
+    }
+    setDownloadingPdf(false);
+  };
 
   const handleSubmit = async () => {
-    if (!colaboradorId || !produtoId || !motivo || !assinatura || !declaracao || !user) {
+    if (!colaboradorId || cart.length === 0 || !motivo || !assinatura || !declaracao || !user) {
       toast({ title: 'Atenção', description: 'Preencha todos os campos, assine e aceite a declaração.', variant: 'destructive' });
       return;
     }
-    if (selectedProduct && quantidade > selectedProduct.saldo) {
-      toast({ title: 'Erro', description: 'Saldo insuficiente.', variant: 'destructive' });
-      return;
-    }
-
     setSubmitting(true);
-
     try {
-      // Capture real IP
       let ipOrigem = 'browser';
       try {
         const ipRes = await fetch('https://api.ipify.org?format=json');
@@ -109,15 +163,13 @@ export default function EntregaEPI() {
         ipOrigem = ipData.ip || 'browser';
       } catch { /* fallback */ }
 
-      // Generate SHA-256 hash of the signature + timestamp for document integrity
       const timestamp = new Date().toISOString();
-      const hashInput = `${assinatura}|${colaboradorId}|${produtoId}|${quantidade}|${motivo}|${timestamp}|${ipOrigem}`;
+      const hashInput = `${assinatura}|${colaboradorId}|${cart.map(i => i.produto.id).join(',')}|${timestamp}|${ipOrigem}`;
       const encoder = new TextEncoder();
       const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(hashInput));
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       const pdfHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-      // Create entrega
       const { data: entrega, error: entregaError } = await supabase.from('entregas_epi').insert({
         colaborador_id: colaboradorId,
         usuario_id: user.id,
@@ -134,185 +186,432 @@ export default function EntregaEPI() {
 
       if (entregaError) throw entregaError;
 
-      // Create item
-      const prod = selectedProduct!;
-      const { error: itemError } = await supabase.from('entrega_epi_itens').insert({
+      // Insert all items
+      const itensPayload = cart.map(i => ({
         entrega_id: entrega.id,
-        produto_id: produtoId,
-        quantidade,
-        nome_snapshot: prod.nome,
-        ca_snapshot: prod.ca,
-        validade_snapshot: prod.data_validade,
-        custo_unitario_snapshot: prod.custo_unitario,
-      });
+        produto_id: i.produto.id,
+        quantidade: i.quantidade,
+        nome_snapshot: i.produto.nome,
+        ca_snapshot: i.produto.ca,
+        validade_snapshot: i.produto.data_validade,
+        custo_unitario_snapshot: i.produto.custo_unitario,
+      }));
+      const { error: itemError } = await supabase.from('entrega_epi_itens').insert(itensPayload);
       if (itemError) throw itemError;
 
-      // Create stock movement
-      const { error: movError } = await supabase.from('movimentacoes_estoque').insert({
-        produto_id: produtoId,
-        tipo_movimentacao: 'SAIDA',
-        quantidade,
+      // Stock movements for each item
+      const movPayload = cart.map(i => ({
+        produto_id: i.produto.id,
+        tipo_movimentacao: 'SAIDA' as const,
+        quantidade: i.quantidade,
         motivo: `Entrega EPI: ${motivo}`,
         usuario_id: user.id,
         colaborador_id: colaboradorId,
         entrega_id: entrega.id,
         empresa_id: selectedEmpresa?.id || null,
-      });
+      }));
+      const { error: movError } = await supabase.from('movimentacoes_estoque').insert(movPayload);
       if (movError) throw movError;
 
-      // Try to send email via edge function
+      // Send email
       try {
         const colab = colaboradores.find(c => c.id === colaboradorId);
         await supabase.functions.invoke('send-entrega-email', {
-          body: { entregaId: entrega.id, colaboradorNome: colab?.nome, colaboradorEmail: colab?.email, itens: [{ nome: prod.nome, ca: prod.ca, quantidade }] },
+          body: {
+            entregaId: entrega.id,
+            colaboradorNome: colab?.nome,
+            colaboradorEmail: colab?.email,
+            itens: cart.map(i => ({ nome: i.produto.nome, ca: i.produto.ca, quantidade: i.quantidade })),
+          },
         });
-      } catch (emailErr) {
-        console.warn('Email sending failed (function may not exist yet):', emailErr);
-      }
+      } catch { /* email optional */ }
 
-      toast({ title: 'Entrega registrada!', description: 'Assinatura e movimentação salvas com sucesso.' });
+      toast({ title: 'Entrega registrada!', description: `${cart.length} item(ns) entregues com sucesso.` });
       setLastEntregaId(entrega.id);
-
-      // Reset form
-      setColaboradorId('');
-      setProdutoId('');
-      setQuantidade(1);
-      setMotivo('');
-      setObservacao('');
-      setAssinatura(null);
-      setDeclaracao(false);
+      setStep(4); // success
     } catch (err: any) {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     }
-
     setSubmitting(false);
   };
 
-  const selectedColab = colaboradores.find(c => c.id === colaboradorId);
+  const resetForm = () => {
+    setStep(1);
+    setColaboradorId('');
+    setColabSearch('');
+    setCart([]);
+    setAddProdutoId('');
+    setAddQty(1);
+    setProdSearch('');
+    setMotivo('');
+    setObservacao('');
+    setAssinatura(null);
+    setDeclaracao(false);
+    setLastEntregaId(null);
+  };
+
+  const formatCurrency = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div><h1 className="text-xl font-semibold text-foreground">Entrega de EPI</h1></div>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="animate-spin text-muted-foreground" size={28} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-xl font-semibold text-foreground">Entrega de EPI</h1>
-        <p className="text-xs text-muted-foreground mt-0.5">Registre a entrega com assinatura digital</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {selectedEmpresa?.nome || 'Todas as empresas'} • Registre a entrega com assinatura digital
+        </p>
       </div>
 
+      {/* Stepper */}
+      {step <= 3 && (
+        <div className="flex items-center gap-1 max-w-2xl">
+          {STEPS.map((s, idx) => {
+            const Icon = s.icon;
+            const isActive = step === s.id;
+            const isDone = step > s.id;
+            return (
+              <div key={s.id} className="flex items-center flex-1">
+                <button
+                  onClick={() => isDone && setStep(s.id)}
+                  disabled={!isDone}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all w-full",
+                    isActive && "bg-primary text-primary-foreground shadow-sm",
+                    isDone && "bg-primary/10 text-primary cursor-pointer hover:bg-primary/15",
+                    !isActive && !isDone && "bg-muted text-muted-foreground"
+                  )}
+                >
+                  <div className={cn(
+                    "w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold",
+                    isActive && "bg-primary-foreground/20",
+                    isDone && "bg-primary/20",
+                    !isActive && !isDone && "bg-muted-foreground/10"
+                  )}>
+                    {isDone ? <CheckCircle size={14} /> : <Icon size={14} />}
+                  </div>
+                  <span className="hidden sm:inline">{s.label}</span>
+                </button>
+                {idx < STEPS.length - 1 && <ChevronRight size={14} className="text-muted-foreground/40 mx-1 shrink-0" />}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <div className="max-w-2xl">
-        <div className="bg-card rounded-xl border shadow-sm p-5 space-y-5">
-          {/* Colaborador */}
-          <div>
-            <Label className="text-xs font-medium">Colaborador *</Label>
-            <Select value={colaboradorId} onValueChange={setColaboradorId}>
-              <SelectTrigger className="mt-1.5 h-10"><SelectValue placeholder="Selecionar colaborador..." /></SelectTrigger>
-              <SelectContent>
-                {colaboradores.map(c => (
-                  <SelectItem key={c.id} value={c.id}>{c.nome} — {c.matricula}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        {/* Step 1: Colaborador */}
+        {step === 1 && (
+          <div className="bg-card rounded-xl border shadow-sm p-5 space-y-4 animate-fade-in">
+            <div className="flex items-center gap-2 mb-1">
+              <User size={16} className="text-primary" />
+              <h2 className="text-sm font-semibold text-foreground">Selecione o Colaborador</h2>
+            </div>
+
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome, matrícula ou setor..."
+                value={colabSearch}
+                onChange={e => setColabSearch(e.target.value)}
+                className="pl-9 h-10"
+              />
+            </div>
+
+            <div className="max-h-64 overflow-y-auto space-y-1 border rounded-lg p-1.5">
+              {filteredColabs.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-8">Nenhum colaborador encontrado.</p>
+              ) : filteredColabs.map(c => (
+                <button
+                  key={c.id}
+                  onClick={() => setColaboradorId(c.id)}
+                  className={cn(
+                    "w-full text-left px-3 py-2.5 rounded-lg transition-all flex items-center gap-3",
+                    colaboradorId === c.id
+                      ? "bg-primary/10 border border-primary/30 shadow-sm"
+                      : "hover:bg-muted/60"
+                  )}
+                >
+                  <div className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
+                    colaboradorId === c.id ? "bg-primary text-primary-foreground" : "bg-muted"
+                  )}>
+                    <span className="text-[11px] font-bold">{c.nome.charAt(0)}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{c.nome}</p>
+                    <p className="text-[10px] text-muted-foreground">{c.matricula} • {c.setor} • {c.funcao}</p>
+                  </div>
+                  {colaboradorId === c.id && <CheckCircle size={16} className="text-primary shrink-0" />}
+                </button>
+              ))}
+            </div>
+
             {selectedColab && (
-              <div className="text-[11px] text-muted-foreground mt-1.5 pl-0.5 space-y-0.5">
+              <div className="bg-muted/40 rounded-lg p-3 border text-xs text-muted-foreground space-y-0.5">
+                <p className="font-medium text-foreground">{selectedColab.nome}</p>
                 <p>{selectedColab.setor} • {selectedColab.funcao}</p>
-                <p>
-                  {selectedColab.cpf && <span className="font-mono">CPF: {selectedColab.cpf} • </span>}
-                  {selectedColab.email && <span>{selectedColab.email}</span>}
-                </p>
+                {selectedColab.cpf && <p className="font-mono">CPF: {selectedColab.cpf}</p>}
+                {selectedColab.email && <p>{selectedColab.email}</p>}
               </div>
             )}
-          </div>
 
-          {/* Item */}
-          <div>
-            <Label className="text-xs font-medium">Item (EPI/EPC) *</Label>
-            <Select value={produtoId} onValueChange={setProdutoId}>
-              <SelectTrigger className="mt-1.5 h-10"><SelectValue placeholder="Selecionar item..." /></SelectTrigger>
-              <SelectContent>
-                {produtos.map(p => (
-                  <SelectItem key={p.id} value={p.id}>{p.nome} — CA: {p.ca || 'N/A'} (Saldo: {p.saldo})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Qty + Motivo */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-xs font-medium">Quantidade *</Label>
-              <Input type="number" min={1} max={selectedProduct?.saldo || 999} value={quantidade} onChange={(e) => setQuantidade(Number(e.target.value))} className="mt-1.5 h-10" />
-            </div>
-            <div>
-              <Label className="text-xs font-medium">Motivo *</Label>
-              <Select value={motivo} onValueChange={setMotivo}>
-                <SelectTrigger className="mt-1.5 h-10"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
-                <SelectContent>
-                  {motivos.map(m => (<SelectItem key={m} value={m}>{m}</SelectItem>))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Observação */}
-          <div>
-            <Label className="text-xs font-medium">Observação</Label>
-            <Textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Observação (opcional)" className="mt-1.5" rows={2} />
-          </div>
-
-          {/* Assinatura */}
-          <div>
-            <Label className="text-xs font-medium mb-2 block">Assinatura Digital *</Label>
-            <SignatureCanvas onSignatureChange={setAssinatura} />
-          </div>
-
-          {/* Declaração */}
-          <div className="flex items-start gap-2.5 p-3 rounded-lg bg-muted/40 border border-muted">
-            <Checkbox id="declaracao" checked={declaracao} onCheckedChange={(v) => setDeclaracao(v === true)} className="mt-0.5" />
-            <label htmlFor="declaracao" className="text-[11px] text-muted-foreground leading-relaxed cursor-pointer">
-              <strong>DECLARO</strong>, para todos os fins de direito, que recebi os Equipamentos de Proteção Individual (EPI) listados acima, 
-              em perfeito estado de conservação e funcionamento. Fui devidamente orientado(a) e treinado(a) sobre o uso correto, guarda, 
-              conservação e higienização dos mesmos, conforme determina a NR-06 (Portaria MTb nº 3.214/78). 
-              <strong>COMPROMETO-ME</strong> a utilizá-los exclusivamente para a finalidade a que se destinam, responsabilizar-me pela guarda 
-              e conservação, e comunicar qualquer alteração que os torne impróprios para uso. Estou ciente de que a assinatura digital 
-              aqui aposta possui validade jurídica conforme a MP 2.200-2/2001 e que este documento é protegido por hash criptográfico SHA-256 
-              que garante sua integridade e imutabilidade.
-            </label>
-          </div>
-
-          {/* Submit */}
-          <Button className="w-full h-11 text-sm font-semibold" onClick={handleSubmit} disabled={submitting}>
-            {submitting ? (
-              <span className="flex items-center gap-2">
-                <span className="h-4 w-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                Registrando...
-              </span>
-            ) : (
-              <>
-                <CheckCircle size={17} className="mr-2" />
-                Confirmar Entrega
-              </>
-            )}
-          </Button>
-
-          {/* PDF Download after success */}
-          {lastEntregaId && (
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-status-ok-bg border border-status-ok/20 animate-fade-in">
-              <CheckCircle size={18} className="text-status-ok shrink-0" />
-              <div className="flex-1">
-                <p className="text-xs font-medium text-foreground">Entrega registrada com sucesso!</p>
-                <p className="text-[10px] text-muted-foreground">Código: {lastEntregaId.substring(0, 8).toUpperCase()}</p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 text-xs gap-1.5"
-                onClick={() => handleDownloadPdf(lastEntregaId)}
-                disabled={downloadingPdf}
-              >
-                {downloadingPdf ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />}
-                Termo NR-06
+            <div className="flex justify-end pt-2">
+              <Button onClick={() => setStep(2)} disabled={!canAdvance(1)} className="gap-1.5">
+                Próximo <ChevronRight size={15} />
               </Button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* Step 2: Itens */}
+        {step === 2 && (
+          <div className="bg-card rounded-xl border shadow-sm p-5 space-y-4 animate-fade-in">
+            <div className="flex items-center gap-2 mb-1">
+              <Package size={16} className="text-primary" />
+              <h2 className="text-sm font-semibold text-foreground">Adicionar Itens</h2>
+              <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full text-muted-foreground ml-auto">{cart.length} item(ns)</span>
+            </div>
+
+            {/* Add item row */}
+            <div className="space-y-2 p-3 rounded-lg border border-dashed bg-muted/20">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar produto por nome ou CA..."
+                  value={prodSearch}
+                  onChange={e => setProdSearch(e.target.value)}
+                  className="pl-9 h-9 text-xs"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Select value={addProdutoId} onValueChange={setAddProdutoId}>
+                  <SelectTrigger className="flex-1 h-9 text-xs"><SelectValue placeholder="Selecionar item..." /></SelectTrigger>
+                  <SelectContent>
+                    {availableProducts.map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        <span className="flex items-center gap-2">
+                          <span className={cn("text-[9px] font-bold uppercase px-1.5 py-0.5 rounded", p.tipo === 'EPI' ? 'bg-primary/10 text-primary' : 'bg-amber-500/10 text-amber-600')}>
+                            {p.tipo}
+                          </span>
+                          {p.nome} {p.ca ? `(CA: ${p.ca})` : ''} — Saldo: {p.saldo}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="number"
+                  min={1}
+                  max={produtos.find(p => p.id === addProdutoId)?.saldo || 999}
+                  value={addQty}
+                  onChange={e => setAddQty(Number(e.target.value))}
+                  className="w-20 h-9 text-xs text-center"
+                />
+                <Button size="sm" variant="secondary" className="h-9 px-3" onClick={addToCart} disabled={!addProdutoId}>
+                  <Plus size={14} />
+                </Button>
+              </div>
+            </div>
+
+            {/* Cart */}
+            {cart.length > 0 && (
+              <div className="space-y-1.5">
+                {cart.map((item, idx) => (
+                  <div key={item.produto.id} className="flex items-center gap-3 p-3 rounded-lg border bg-background">
+                    <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
+                      {idx + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{item.produto.nome}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {item.produto.tipo} {item.produto.ca ? `• CA: ${item.produto.ca}` : ''} • Saldo: {item.produto.saldo}
+                        {item.produto.data_validade && (
+                          <span className={cn(
+                            "ml-1",
+                            new Date(item.produto.data_validade) < new Date() && "text-status-danger font-medium"
+                          )}>
+                            • Val: {new Date(item.produto.data_validade).toLocaleDateString('pt-BR')}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => updateCartQty(item.produto.id, item.quantidade - 1)}>−</Button>
+                      <span className="text-sm font-bold tabular-nums w-6 text-center">{item.quantidade}</span>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => updateCartQty(item.produto.id, item.quantidade + 1)}>+</Button>
+                    </div>
+                    <span className="text-xs text-muted-foreground w-20 text-right hidden sm:block">
+                      {formatCurrency(item.quantidade * item.produto.custo_unitario)}
+                    </span>
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-status-danger" onClick={() => removeFromCart(item.produto.id)}>
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
+                ))}
+                <div className="flex justify-end px-3 pt-1">
+                  <span className="text-xs text-muted-foreground">Total estimado: <span className="font-semibold text-foreground">{formatCurrency(cartTotal)}</span></span>
+                </div>
+              </div>
+            )}
+
+            {/* Motivo + Observação */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              <div>
+                <Label className="text-xs font-medium">Motivo da Entrega *</Label>
+                <Select value={motivo} onValueChange={setMotivo}>
+                  <SelectTrigger className="mt-1.5 h-10"><SelectValue placeholder="Selecionar motivo..." /></SelectTrigger>
+                  <SelectContent>
+                    {motivos.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs font-medium">Observação</Label>
+                <Textarea value={observacao} onChange={e => setObservacao(e.target.value)} placeholder="Opcional" className="mt-1.5" rows={2} />
+              </div>
+            </div>
+
+            <div className="flex justify-between pt-2">
+              <Button variant="outline" onClick={() => setStep(1)} className="gap-1.5">
+                <ChevronLeft size={15} /> Voltar
+              </Button>
+              <Button onClick={() => setStep(3)} disabled={!canAdvance(2)} className="gap-1.5">
+                Próximo <ChevronRight size={15} />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Revisão & Assinatura */}
+        {step === 3 && (
+          <div className="bg-card rounded-xl border shadow-sm p-5 space-y-5 animate-fade-in">
+            <div className="flex items-center gap-2 mb-1">
+              <ClipboardList size={16} className="text-primary" />
+              <h2 className="text-sm font-semibold text-foreground">Revisão & Assinatura</h2>
+            </div>
+
+            {/* Summary */}
+            <div className="rounded-lg border overflow-hidden">
+              <div className="bg-muted/40 px-4 py-2.5 border-b">
+                <p className="text-xs font-semibold text-foreground">Colaborador</p>
+              </div>
+              <div className="px-4 py-3 text-sm">
+                <p className="font-medium">{selectedColab?.nome}</p>
+                <p className="text-xs text-muted-foreground">{selectedColab?.matricula} • {selectedColab?.setor} • {selectedColab?.funcao}</p>
+                {selectedColab?.cpf && <p className="text-xs text-muted-foreground font-mono mt-0.5">CPF: {selectedColab.cpf}</p>}
+              </div>
+            </div>
+
+            <div className="rounded-lg border overflow-hidden">
+              <div className="bg-muted/40 px-4 py-2.5 border-b flex items-center justify-between">
+                <p className="text-xs font-semibold text-foreground">Itens ({cart.length})</p>
+                <p className="text-xs text-muted-foreground">Motivo: <span className="font-medium text-foreground">{motivo}</span></p>
+              </div>
+              <div className="divide-y">
+                {cart.map(item => (
+                  <div key={item.produto.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{item.produto.nome}</p>
+                      <p className="text-[10px] text-muted-foreground">{item.produto.tipo} {item.produto.ca ? `• CA: ${item.produto.ca}` : ''}</p>
+                    </div>
+                    <div className="text-right shrink-0 ml-4">
+                      <p className="text-sm font-bold">{item.quantidade}x</p>
+                      <p className="text-[10px] text-muted-foreground">{formatCurrency(item.quantidade * item.produto.custo_unitario)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="bg-muted/40 px-4 py-2 border-t flex justify-between text-xs">
+                <span className="text-muted-foreground">Total estimado</span>
+                <span className="font-semibold text-foreground">{formatCurrency(cartTotal)}</span>
+              </div>
+            </div>
+
+            {observacao && (
+              <div className="bg-muted/30 rounded-lg p-3 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Obs:</span> {observacao}
+              </div>
+            )}
+
+            {/* Warnings */}
+            {cart.some(i => i.produto.data_validade && new Date(i.produto.data_validade) < new Date()) && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-status-danger/5 border border-status-danger/20 text-xs text-status-danger">
+                <AlertTriangle size={15} className="shrink-0" />
+                <span>Atenção: há item(ns) com validade expirada na entrega.</span>
+              </div>
+            )}
+
+            {/* Assinatura */}
+            <div>
+              <Label className="text-xs font-medium mb-2 block">Assinatura Digital do Colaborador *</Label>
+              <SignatureCanvas onSignatureChange={setAssinatura} />
+            </div>
+
+            {/* Declaração */}
+            <div className="flex items-start gap-2.5 p-3 rounded-lg bg-muted/40 border border-muted">
+              <Checkbox id="declaracao" checked={declaracao} onCheckedChange={(v) => setDeclaracao(v === true)} className="mt-0.5" />
+              <label htmlFor="declaracao" className="text-[11px] text-muted-foreground leading-relaxed cursor-pointer">
+                <strong>DECLARO</strong>, para todos os fins de direito, que recebi os Equipamentos de Proteção Individual (EPI) listados acima,
+                em perfeito estado de conservação e funcionamento. Fui devidamente orientado(a) e treinado(a) sobre o uso correto, guarda,
+                conservação e higienização dos mesmos, conforme determina a NR-06 (Portaria MTb nº 3.214/78).
+                <strong> COMPROMETO-ME</strong> a utilizá-los exclusivamente para a finalidade a que se destinam, responsabilizar-me pela guarda
+                e conservação, e comunicar qualquer alteração que os torne impróprios para uso. Estou ciente de que a assinatura digital
+                aqui aposta possui validade jurídica conforme a MP 2.200-2/2001 e que este documento é protegido por hash criptográfico SHA-256
+                que garante sua integridade e imutabilidade.
+              </label>
+            </div>
+
+            <div className="flex justify-between pt-2">
+              <Button variant="outline" onClick={() => setStep(2)} className="gap-1.5">
+                <ChevronLeft size={15} /> Voltar
+              </Button>
+              <Button onClick={handleSubmit} disabled={submitting || !assinatura || !declaracao} className="gap-1.5">
+                {submitting ? (
+                  <><Loader2 size={15} className="animate-spin" /> Registrando...</>
+                ) : (
+                  <><ShieldCheck size={15} /> Confirmar Entrega</>
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Success */}
+        {step === 4 && lastEntregaId && (
+          <div className="bg-card rounded-xl border shadow-sm p-8 text-center space-y-5 animate-fade-in">
+            <div className="w-16 h-16 rounded-full bg-status-ok/10 flex items-center justify-center mx-auto">
+              <CheckCircle size={32} className="text-status-ok" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Entrega Registrada!</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                {cart.length} item(ns) entregues para <span className="font-medium text-foreground">{selectedColab?.nome}</span>
+              </p>
+              <p className="text-[10px] text-muted-foreground mt-2 font-mono">
+                ID: {lastEntregaId.substring(0, 8).toUpperCase()} • Hash SHA-256 registrado
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 justify-center pt-2">
+              <Button variant="outline" onClick={() => handleDownloadPdf(lastEntregaId)} disabled={downloadingPdf} className="gap-1.5">
+                {downloadingPdf ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />}
+                Baixar Termo NR-06
+              </Button>
+              <Button onClick={resetForm} className="gap-1.5">
+                <Plus size={15} /> Nova Entrega
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
