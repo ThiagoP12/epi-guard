@@ -33,19 +33,21 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [selectedEmpresa, setSelectedEmpresa] = useState<Empresa | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialLoaded, setInitialLoaded] = useState(false);
 
   useEffect(() => {
     if (!user) {
       setEmpresas([]);
       setSelectedEmpresa(null);
       setLoading(false);
+      setInitialLoaded(false);
       return;
     }
 
     const load = async () => {
-      setLoading(true);
+      // Only show loading on initial load, not on subsequent re-fetches
+      if (!initialLoaded) setLoading(true);
 
-      // RLS now enforces empresa isolation, so just query all visible empresas
       const { data } = await supabase
         .from('empresas')
         .select('*')
@@ -57,6 +59,7 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
       }
 
       setLoading(false);
+      setInitialLoaded(true);
     };
 
     load();
