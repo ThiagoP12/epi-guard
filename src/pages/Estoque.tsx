@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Filter, Plus, Minus, PackageOpen, Package, AlertTriangle, DollarSign, History, Settings2, ArrowUpDown, Eye } from 'lucide-react';
+import { Search, Filter, Plus, Minus, PackageOpen, Package, AlertTriangle, DollarSign, History, Settings2, ArrowUpDown, Eye, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useEmpresa } from '@/contexts/EmpresaContext';
 import { cn } from '@/lib/utils';
+import SignatureCanvas from '@/components/SignatureCanvas';
 
 interface ProdutoComSaldo {
   id: string;
@@ -71,7 +72,9 @@ export default function Estoque() {
   const [nf, setNf] = useState('');
   const [obs, setObs] = useState('');
   const [ajusteTipo, setAjusteTipo] = useState<'AUMENTO' | 'REDUCAO'>('AUMENTO');
-
+  const [colaboradorId, setColaboradorId] = useState('');
+  const [assinatura, setAssinatura] = useState<string | null>(null);
+  const [colaboradores, setColaboradores] = useState<{ id: string; nome: string; matricula: string }[]>([]);
   // Product CRUD modal
   const [prodModalOpen, setProdModalOpen] = useState(false);
   const [prodForm, setProdForm] = useState(emptyProduct);
@@ -89,9 +92,21 @@ export default function Estoque() {
 
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const { toast } = useToast();
   const { selectedEmpresa } = useEmpresa();
+  const isAdmin = role === 'admin';
+
+  // Load colaboradores for exit modal
+  useEffect(() => {
+    const loadColaboradores = async () => {
+      let query = supabase.from('colaboradores').select('id, nome, matricula').eq('ativo', true).order('nome');
+      if (selectedEmpresa) query = query.eq('empresa_id', selectedEmpresa.id);
+      const { data } = await query;
+      setColaboradores(data || []);
+    };
+    loadColaboradores();
+  }, [selectedEmpresa]);
 
   const loadProdutos = async () => {
     setLoading(true);
@@ -132,11 +147,21 @@ export default function Estoque() {
     setNf('');
     setObs('');
     setAjusteTipo('AUMENTO');
+    setColaboradorId('');
+    setAssinatura(null);
     setMovModalOpen(true);
   };
 
   const handleMovimentacao = async () => {
     if (!selected || !user || qty < 1) return;
+    if (movType === 'saida' && !colaboradorId) {
+      toast({ title: 'Atenção', description: 'Selecione o colaborador para a saída.', variant: 'destructive' });
+      return;
+    }
+    if (movType === 'saida' && !assinatura && !isAdmin) {
+      toast({ title: 'Atenção', description: 'Assinatura do colaborador é obrigatória.', variant: 'destructive' });
+      return;
+    }
     if (movType === 'saida' && qty > selected.saldo) {
       toast({ title: 'Erro', description: 'Saldo insuficiente.', variant: 'destructive' });
       return;
@@ -154,6 +179,7 @@ export default function Estoque() {
       referencia_nf: nf || null,
       observacao: obs || null,
       empresa_id: selectedEmpresa?.id || null,
+      colaborador_id: movType === 'saida' ? colaboradorId : null,
     };
 
     if (movType === 'ajuste') {
@@ -454,20 +480,33 @@ export default function Estoque() {
 
       {/* Movement Modal */}
       <Dialog open={movModalOpen} onOpenChange={setMovModalOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className={cn("sm:max-w-md", movType === 'saida' && "sm:max-w-lg")}>
           <DialogHeader>
             <DialogTitle>
               {movType === 'entrada' ? '📦 Entrada de Estoque' : movType === 'saida' ? '📤 Saída de Estoque' : '⚖️ Ajuste de Estoque'}
             </DialogTitle>
           </DialogHeader>
           {selected && (
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                 <div>
                   <p className="text-sm font-medium">{selected.nome}</p>
                   <p className="text-xs text-muted-foreground">{selected.codigo_interno} • Saldo atual: <span className="font-semibold">{selected.saldo}</span></p>
                 </div>
               </div>
+              {movType === 'saida' && (
+                <div>
+                  <Label className="text-xs flex items-center gap-1"><Users size={12} /> Colaborador *</Label>
+                  <Select value={colaboradorId} onValueChange={setColaboradorId}>
+                    <SelectTrigger className="mt-1 h-9"><SelectValue placeholder="Selecionar colaborador..." /></SelectTrigger>
+                    <SelectContent>
+                      {colaboradores.map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.nome} — {c.matricula}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               {movType === 'ajuste' && (
                 <div>
                   <Label className="text-xs">Tipo de Ajuste *</Label>
@@ -499,6 +538,14 @@ export default function Estoque() {
                 <Label className="text-xs">Observação</Label>
                 <Textarea value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Observação (opcional)" className="mt-1" rows={2} />
               </div>
+              {movType === 'saida' && (
+                <div>
+                  <Label className="text-xs">Assinatura do Colaborador {isAdmin ? '(opcional para admin)' : '*'}</Label>
+                  <div className="mt-1">
+                    <SignatureCanvas onSignatureChange={setAssinatura} />
+                  </div>
+                </div>
+              )}
               <Button className="w-full h-9 font-medium" onClick={handleMovimentacao} disabled={submitting}>
                 {submitting ? (
                   <span className="flex items-center gap-2">
