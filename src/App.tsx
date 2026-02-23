@@ -123,7 +123,8 @@ import { useState } from "react";
 function ProtectedRoutes() {
   const { user, loading, role, roles, empresaAprovada } = useAuth();
 
-  if (loading) {
+  // Show loading while auth or profile is still resolving
+  if (loading || (user && !role && roles.length === 0 && empresaAprovada === null)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30">
         <div className="text-center">
