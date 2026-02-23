@@ -1,0 +1,1 @@
+ALTER PUBLICATION supabase_realtime ADD TABLE public.solicitacoes_epi;
