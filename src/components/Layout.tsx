@@ -100,18 +100,29 @@ export default function Layout() {
         </div>
 
         {/* Empresa Selector + Breadcrumb (desktop) */}
-        <div className="hidden md:flex items-center gap-2 text-primary-foreground/50 text-xs absolute left-1/2 -translate-x-1/2">
+         <div className="hidden md:flex items-center gap-2 text-primary-foreground/50 text-xs absolute left-1/2 -translate-x-1/2">
           {empresas.length > 0 && (
             <Popover open={empresaPopoverOpen} onOpenChange={setEmpresaPopoverOpen}>
               <PopoverTrigger asChild>
                 <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-primary-foreground/10 hover:bg-primary-foreground/15 transition-colors text-primary-foreground/90 font-medium text-xs">
                   <Building2 size={13} />
-                  <span className="max-w-[180px] truncate">{selectedEmpresa?.nome || 'Selecionar empresa'}</span>
+                  <span className="max-w-[180px] truncate">{selectedEmpresa?.nome || 'Todas'}</span>
                   <ChevronsUpDown size={12} className="text-primary-foreground/50" />
                 </button>
               </PopoverTrigger>
               <PopoverContent className="w-64 p-1.5" align="center">
                 <p className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider px-2 py-1.5">Empresas</p>
+                <button
+                  className={cn(
+                    "w-full flex items-center gap-2 px-2 py-2 rounded-md text-sm hover:bg-muted/60 transition-colors text-left",
+                    !selectedEmpresa && "bg-muted font-medium"
+                  )}
+                  onClick={() => { setSelectedEmpresa(null); setEmpresaPopoverOpen(false); }}
+                >
+                  <Building2 size={14} className="shrink-0 text-muted-foreground" />
+                  <span className="flex-1 truncate">Todas</span>
+                  {!selectedEmpresa && <Check size={14} className="text-primary shrink-0" />}
+                </button>
                 {empresas.filter(e => !e.matriz_id).map(matriz => {
                   const filiais = empresas.filter(e => e.matriz_id === matriz.id);
                   return (
