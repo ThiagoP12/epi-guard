@@ -41,6 +41,8 @@ export default function SelfieCapture({ onCaptureChange, label = 'Selfie de Veri
     setCameraActive(false);
   }, []);
 
+  const MAX_SELFIE_BYTES = 500 * 1024; // 500KB
+
   const capture = useCallback(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -57,7 +59,20 @@ export default function SelfieCapture({ onCaptureChange, label = 'Selfie de Veri
     const sy = (video.videoHeight - size) / 2;
     ctx.drawImage(video, sx, sy, size, size, 0, 0, 400, 400);
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+    let quality = 0.7;
+    let dataUrl = canvas.toDataURL('image/jpeg', quality);
+
+    // Reduce quality if still too large
+    while (dataUrl.length > MAX_SELFIE_BYTES * 1.37 && quality > 0.2) {
+      quality -= 0.1;
+      dataUrl = canvas.toDataURL('image/jpeg', quality);
+    }
+
+    if (dataUrl.length > MAX_SELFIE_BYTES * 1.37) {
+      setError('Imagem muito grande. Tente novamente com melhor iluminação.');
+      return;
+    }
+
     setCaptured(dataUrl);
     onCaptureChange(dataUrl);
     stopCamera();
