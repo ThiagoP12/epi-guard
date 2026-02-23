@@ -277,7 +277,7 @@ export default function PortalColaborador() {
   const navItems = [
     { key: 'solicitar' as const, label: 'Nova Solicitação', shortLabel: 'Solicitar', icon: ClipboardCheck, badge: 0 },
     { key: 'historico' as const, label: 'Minhas Solicitações', shortLabel: 'Histórico', icon: History, badge: pendingCount },
-    { key: 'recebimentos' as const, label: 'Recebimentos', shortLabel: 'Recebidos', icon: Package, badge: entregas.length },
+    { key: 'recebimentos' as const, label: 'Recebimentos', shortLabel: 'Recebidos', icon: Package, badge: entregas.length + solicitacoes.filter(s => s.status === 'entregue').length },
   ];
 
   const initials = colaborador.nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
@@ -590,14 +590,24 @@ export default function PortalColaborador() {
           {/* RECEBIMENTOS */}
           {activeSection === 'recebimentos' && (
             <div className="space-y-3 animate-in fade-in-0 duration-200">
-              {/* Summary */}
+              {/* Summary - combine entregas + solicitações entregues */}
               {(() => {
                 const totals: { nome: string; ca: string | null; total: number }[] = [];
+                // From entregas_epi
                 entregas.forEach(e => e.itens.forEach(item => {
                   const existing = totals.find(t => t.nome === item.nome_snapshot);
                   if (existing) existing.total += item.quantidade;
                   else totals.push({ nome: item.nome_snapshot, ca: item.ca_snapshot, total: item.quantidade });
                 }));
+                // From solicitações entregues
+                const solEntregues = solicitacoes.filter(s => s.status === 'entregue');
+                solEntregues.forEach(s => {
+                  const nome = s.produto?.nome || 'Produto';
+                  const ca = s.produto?.ca || null;
+                  const existing = totals.find(t => t.nome === nome);
+                  if (existing) existing.total += s.quantidade;
+                  else totals.push({ nome, ca, total: s.quantidade });
+                });
                 if (totals.length === 0) return null;
                 return (
                   <div className="bg-card rounded-xl border shadow-sm overflow-hidden mb-2">
@@ -622,36 +632,76 @@ export default function PortalColaborador() {
                 );
               })()}
 
-              {entregas.length === 0 ? (
-                <EmptyState icon={Package} message="Nenhum equipamento recebido." sub="Quando você receber EPIs, eles aparecerão aqui." />
-              ) : (
-                entregas.map(e => (
-                  <div key={e.id} className="bg-card rounded-xl border shadow-sm overflow-hidden">
-                    <div className="flex items-center justify-between px-5 py-3 border-b bg-muted/20">
-                      <span className="text-sm font-medium text-foreground">{e.motivo}</span>
-                      <span className="text-[11px] text-muted-foreground font-mono">
-                        {format(new Date(e.data_hora), 'dd/MM/yyyy HH:mm')}
-                      </span>
-                    </div>
-                    <div className="p-4 space-y-1.5">
-                      {e.itens.map((item, idx) => (
-                        <div key={idx} className="flex items-center justify-between text-xs bg-muted/30 rounded-lg px-3 py-2.5">
+              {/* Solicitações entregues */}
+              {(() => {
+                const solEntregues = solicitacoes.filter(s => s.status === 'entregue');
+                if (solEntregues.length > 0) {
+                  return solEntregues.map(s => (
+                    <div key={`sol-${s.id}`} className="bg-card rounded-xl border shadow-sm overflow-hidden">
+                      <div className="flex items-center justify-between px-5 py-3 border-b bg-muted/20">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-foreground">{s.motivo}</span>
+                          <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">Via Solicitação</span>
+                        </div>
+                        <span className="text-[11px] text-muted-foreground font-mono">
+                          {format(new Date(s.created_at), 'dd/MM/yyyy HH:mm')}
+                        </span>
+                      </div>
+                      <div className="p-4 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs bg-muted/30 rounded-lg px-3 py-2.5">
                           <div className="flex items-center gap-2">
                             <Package size={12} className="text-muted-foreground" />
-                            <span className="font-medium text-foreground">{item.nome_snapshot}</span>
-                            {item.ca_snapshot && <span className="text-muted-foreground font-mono text-[10px]">CA: {item.ca_snapshot}</span>}
+                            <span className="font-medium text-foreground">{s.produto?.nome || 'Produto'}</span>
+                            {s.produto?.ca && <span className="text-muted-foreground font-mono text-[10px]">CA: {s.produto.ca}</span>}
                           </div>
-                          <span className="font-bold text-primary">{item.quantidade}×</span>
+                          <span className="font-bold text-primary">{s.quantidade}×</span>
                         </div>
-                      ))}
-                    </div>
-                    {e.observacao && (
-                      <div className="px-5 pb-3">
-                        <p className="text-[11px] text-muted-foreground italic">Obs: {e.observacao}</p>
                       </div>
-                    )}
+                      {s.observacao && (
+                        <div className="px-5 pb-3">
+                          <p className="text-[11px] text-muted-foreground italic">Obs: {s.observacao}</p>
+                        </div>
+                      )}
+                    </div>
+                  ));
+                }
+                return null;
+              })()}
+
+              {/* Entregas diretas */}
+              {entregas.map(e => (
+                <div key={e.id} className="bg-card rounded-xl border shadow-sm overflow-hidden">
+                  <div className="flex items-center justify-between px-5 py-3 border-b bg-muted/20">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-foreground">{e.motivo}</span>
+                      <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">Entrega Direta</span>
+                    </div>
+                    <span className="text-[11px] text-muted-foreground font-mono">
+                      {format(new Date(e.data_hora), 'dd/MM/yyyy HH:mm')}
+                    </span>
                   </div>
-                ))
+                  <div className="p-4 space-y-1.5">
+                    {e.itens.map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-xs bg-muted/30 rounded-lg px-3 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <Package size={12} className="text-muted-foreground" />
+                          <span className="font-medium text-foreground">{item.nome_snapshot}</span>
+                          {item.ca_snapshot && <span className="text-muted-foreground font-mono text-[10px]">CA: {item.ca_snapshot}</span>}
+                        </div>
+                        <span className="font-bold text-primary">{item.quantidade}×</span>
+                      </div>
+                    ))}
+                  </div>
+                  {e.observacao && (
+                    <div className="px-5 pb-3">
+                      <p className="text-[11px] text-muted-foreground italic">Obs: {e.observacao}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {entregas.length === 0 && solicitacoes.filter(s => s.status === 'entregue').length === 0 && (
+                <EmptyState icon={Package} message="Nenhum equipamento recebido." sub="Quando você receber EPIs, eles aparecerão aqui." />
               )}
             </div>
           )}
