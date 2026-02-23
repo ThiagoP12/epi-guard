@@ -295,19 +295,6 @@ export default function PortalColaborador() {
               </div>
               <span className="text-xs sm:text-sm font-bold text-primary-foreground">Portal EPI</span>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-primary-foreground/15 flex items-center justify-center text-[10px] font-bold text-primary-foreground">
-                {initials}
-              </div>
-              <button
-                onClick={signOut}
-                className="flex items-center gap-1 text-primary-foreground/80 hover:text-primary-foreground transition-colors text-xs px-2 py-1 rounded-md hover:bg-primary-foreground/10"
-                title="Sair"
-              >
-                <LogOut size={14} />
-                <span className="hidden sm:inline">Sair</span>
-              </button>
-            </div>
           </div>
         </div>
       </header>
