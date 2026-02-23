@@ -16,6 +16,7 @@ import Relatorios from "./pages/Relatorios";
 import Configuracoes from "./pages/Configuracoes";
 import Solicitacoes from "./pages/Solicitacoes";
 import Auditoria from "./pages/Auditoria";
+import Usuarios from "./pages/Usuarios";
 import AdminTenants from "./pages/AdminTenants";
 import PortalColaborador from "./pages/PortalColaborador";
 import NotFound from "./pages/NotFound";
@@ -165,6 +166,7 @@ function ProtectedRoutes() {
           <Route path="/auditoria" element={<Auditoria />} />
           <Route path="/controle-epc" element={<ControleEPC />} />
           <Route path="/relatorios" element={<Relatorios />} />
+          <Route path="/usuarios" element={<Usuarios />} />
           <Route path="/configuracoes" element={<Configuracoes />} />
           {roles.includes('super_admin') && (
             <Route path="/admin-tenants" element={<AdminTenants />} />
