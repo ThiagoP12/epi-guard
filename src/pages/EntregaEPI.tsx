@@ -209,6 +209,7 @@ export default function EntregaEPI() {
         colaborador_id: colaboradorId,
         entrega_id: entrega.id,
         empresa_id: selectedEmpresa?.id || null,
+        assinatura_base64: assinatura,
       }));
       const { error: movError } = await supabase.from('movimentacoes_estoque').insert(movPayload);
       if (movError) throw movError;

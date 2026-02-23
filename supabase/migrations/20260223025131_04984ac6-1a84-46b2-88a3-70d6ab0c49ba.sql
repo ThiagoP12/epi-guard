@@ -1,0 +1,1 @@
+ALTER TABLE public.movimentacoes_estoque ADD COLUMN assinatura_base64 text;

@@ -336,6 +336,7 @@ export type Database = {
       movimentacoes_estoque: {
         Row: {
           ajuste_tipo: Database["public"]["Enums"]["ajuste_tipo"] | null
+          assinatura_base64: string | null
           colaborador_id: string | null
           created_at: string
           data_hora: string
@@ -352,6 +353,7 @@ export type Database = {
         }
         Insert: {
           ajuste_tipo?: Database["public"]["Enums"]["ajuste_tipo"] | null
+          assinatura_base64?: string | null
           colaborador_id?: string | null
           created_at?: string
           data_hora?: string
@@ -368,6 +370,7 @@ export type Database = {
         }
         Update: {
           ajuste_tipo?: Database["public"]["Enums"]["ajuste_tipo"] | null
+          assinatura_base64?: string | null
           colaborador_id?: string | null
           created_at?: string
           data_hora?: string

@@ -182,6 +182,7 @@ export default function Estoque() {
       observacao: obs || null,
       empresa_id: selectedEmpresa?.id || null,
       colaborador_id: movType === 'saida' ? colaboradorId : null,
+      assinatura_base64: movType === 'saida' ? assinatura : null,
     };
 
     if (movType === 'ajuste') {
