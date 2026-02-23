@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Shield, Eye, EyeOff, Building2, Loader2, User } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -175,7 +176,12 @@ export default function Login() {
           </form>
         )}
 
-        <p className="text-center text-[10px] text-muted-foreground/60 mt-6">
+        <p className="text-center text-xs text-muted-foreground mt-6">
+          <Link to="/portal/login" className="text-primary font-semibold hover:underline underline-offset-2">
+            Sou colaborador
+          </Link>
+        </p>
+        <p className="text-center text-[10px] text-muted-foreground/60 mt-3">
           Sistema de Segurança do Trabalho • Multi-Tenant
         </p>
       </div>
