@@ -14,7 +14,7 @@ import ComprovanteSolicitacao from '@/components/ComprovanteSolicitacao';
 import {
   LogOut, Package, History, ClipboardCheck, CheckCircle, Clock, XCircle,
   Loader2, FileText, User, Building2, Hash,
-  Camera, PenTool, Send, AlertTriangle, HardHat, Eye, Shield
+  Camera, PenTool, Send, AlertTriangle, HardHat, Eye, Shield, ImagePlus
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -68,6 +68,8 @@ export default function PortalColaborador() {
   const [submitting, setSubmitting] = useState(false);
   const [comprovanteOpen, setComprovanteOpen] = useState(false);
   const [comprovanteSolicitacao, setComprovanteSolicitacao] = useState<Solicitacao | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -97,6 +99,15 @@ export default function PortalColaborador() {
 
       await loadSolicitacoes(colabData.id);
       await loadEntregas(colabData.id);
+
+      // Load avatar
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', user.id)
+        .single();
+      if (profile?.avatar_url) setAvatarUrl(profile.avatar_url);
+
       setLoading(false);
     };
     load();
@@ -302,9 +313,51 @@ export default function PortalColaborador() {
       <div className="bg-gradient-to-b from-primary/5 to-transparent">
         <div className="max-w-4xl mx-auto px-3 sm:px-6 pt-4 pb-2 sm:pt-5 sm:pb-3">
           <div className="flex items-center gap-2.5 sm:gap-3 mb-3">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-primary/10 border-2 border-primary/20 flex items-center justify-center text-xs sm:text-sm font-bold text-primary shrink-0">
-              {initials}
-            </div>
+            <label className="relative w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-primary/10 border-2 border-primary/20 flex items-center justify-center text-xs sm:text-sm font-bold text-primary shrink-0 cursor-pointer group overflow-hidden">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                initials
+              )}
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                {uploadingAvatar ? (
+                  <Loader2 size={14} className="text-white animate-spin" />
+                ) : (
+                  <Camera size={14} className="text-white" />
+                )}
+              </div>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                disabled={uploadingAvatar}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file || !user) return;
+                  if (file.size > 2 * 1024 * 1024) {
+                    toast({ title: 'Arquivo muito grande', description: 'Máximo 2MB.', variant: 'destructive' });
+                    return;
+                  }
+                  setUploadingAvatar(true);
+                  try {
+                    const ext = file.name.split('.').pop();
+                    const path = `${user.id}/avatar.${ext}`;
+                    const { error: uploadErr } = await supabase.storage
+                      .from('avatars')
+                      .upload(path, file, { upsert: true });
+                    if (uploadErr) throw uploadErr;
+                    const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
+                    const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+                    await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', user.id);
+                    setAvatarUrl(publicUrl);
+                    toast({ title: '✅ Foto atualizada!' });
+                  } catch (err: any) {
+                    toast({ title: 'Erro ao enviar foto', description: err.message, variant: 'destructive' });
+                  }
+                  setUploadingAvatar(false);
+                }}
+              />
+            </label>
             <div className="min-w-0 flex-1">
               <h1 className="text-sm sm:text-base font-bold text-foreground truncate">
                 Olá, {colaborador.nome.split(' ')[0]} 👋
