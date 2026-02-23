@@ -276,29 +276,27 @@ export default function PortalColaborador() {
   };
 
   const navItems = [
-    { key: 'solicitar' as const, label: 'Nova Solicitação', icon: ClipboardCheck, badge: 0 },
-    { key: 'historico' as const, label: 'Minhas Solicitações', icon: History, badge: pendingCount },
-    { key: 'recebimentos' as const, label: 'Recebimentos', icon: Package, badge: entregas.length },
+    { key: 'solicitar' as const, label: 'Nova Solicitação', shortLabel: 'Solicitar', icon: ClipboardCheck, badge: 0 },
+    { key: 'historico' as const, label: 'Minhas Solicitações', shortLabel: 'Histórico', icon: History, badge: pendingCount },
+    { key: 'recebimentos' as const, label: 'Recebimentos', shortLabel: 'Recebidos', icon: Package, badge: entregas.length },
   ];
 
   const initials = colaborador.nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
 
   return (
-    <div className="min-h-screen bg-muted/30 flex flex-col">
+    <div className="min-h-screen bg-muted/30 flex flex-col pb-16 sm:pb-0">
       {/* Top Bar - gradient */}
       <header className="bg-gradient-to-r from-primary to-primary/80 sticky top-0 z-20 shadow-md">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6">
-          <div className="flex items-center justify-between h-12">
+        <div className="max-w-4xl mx-auto px-3 sm:px-6">
+          <div className="flex items-center justify-between h-11 sm:h-12">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-primary-foreground/15 flex items-center justify-center">
-                <HardHat size={16} className="text-primary-foreground" />
+              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-primary-foreground/15 flex items-center justify-center">
+                <HardHat size={14} className="text-primary-foreground" />
               </div>
-              <span className="text-sm font-bold text-primary-foreground">Portal EPI</span>
+              <span className="text-xs sm:text-sm font-bold text-primary-foreground">Portal EPI</span>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-primary-foreground/15 flex items-center justify-center text-[10px] font-bold text-primary-foreground">
-                {initials}
-              </div>
+            <div className="w-7 h-7 rounded-full bg-primary-foreground/15 flex items-center justify-center text-[10px] font-bold text-primary-foreground">
+              {initials}
             </div>
           </div>
         </div>
@@ -306,53 +304,52 @@ export default function PortalColaborador() {
 
       {/* Hero card */}
       <div className="bg-gradient-to-b from-primary/5 to-transparent">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-5 pb-3">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 border-2 border-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">
+        <div className="max-w-4xl mx-auto px-3 sm:px-6 pt-4 pb-2 sm:pt-5 sm:pb-3">
+          <div className="flex items-center gap-2.5 sm:gap-3 mb-3">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-primary/10 border-2 border-primary/20 flex items-center justify-center text-xs sm:text-sm font-bold text-primary shrink-0">
               {initials}
             </div>
             <div className="min-w-0">
-              <h1 className="text-base font-bold text-foreground truncate">
+              <h1 className="text-sm sm:text-base font-bold text-foreground truncate">
                 Olá, {colaborador.nome.split(' ')[0]} 👋
               </h1>
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">
+              <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 truncate">
                 {colaborador.funcao} • {colaborador.setor}
                 {colaborador.empresa?.nome && <> • {colaborador.empresa.nome}</>}
               </p>
             </div>
           </div>
 
-          {/* Info pills */}
-          <div className="flex flex-wrap gap-2">
-            <InfoPill icon={Hash} label="Matrícula" value={colaborador.matricula} />
+          <div className="flex flex-wrap gap-1.5 sm:gap-2">
+            <InfoPill icon={Hash} label="Mat" value={colaborador.matricula} />
             <InfoPill icon={Building2} label="Empresa" value={colaborador.empresa?.nome || '—'} />
           </div>
         </div>
       </div>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex-1 w-full">
+      <main className="max-w-4xl mx-auto px-3 sm:px-6 py-3 sm:py-4 flex-1 w-full">
         {/* Stats row */}
-        <div className="grid grid-cols-3 gap-3 mb-5">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4 sm:mb-5">
           <StatCard
             label="Solicitações"
             value={solicitacoes.length}
-            detail={pendingCount > 0 ? `${pendingCount} pendente${pendingCount > 1 ? 's' : ''}` : 'Nenhuma pendente'}
+            detail={pendingCount > 0 ? `${pendingCount} pend.` : 'Nenhuma'}
             accent={pendingCount > 0}
           />
           <StatCard
-            label="Recebimentos"
+            label="Recebidos"
             value={entregas.length}
-            detail={entregas.length > 0 ? `Último: ${format(new Date(entregas[0].data_hora), 'dd/MM')}` : 'Nenhum ainda'}
+            detail={entregas.length > 0 ? `Últ: ${format(new Date(entregas[0].data_hora), 'dd/MM')}` : 'Nenhum'}
           />
           <StatCard
             label="Estoque"
             value={produtos.length}
-            detail="Itens disponíveis"
+            detail="Disponíveis"
           />
         </div>
 
-        {/* Tab Navigation */}
-        <div className="bg-card rounded-xl border shadow-sm mb-5 p-1 flex gap-1">
+        {/* Tab Navigation - desktop only */}
+        <div className="hidden sm:flex bg-card rounded-xl border shadow-sm mb-5 p-1 gap-1">
           {navItems.map(item => (
             <button
               key={item.key}
@@ -365,7 +362,7 @@ export default function PortalColaborador() {
               )}
             >
               <item.icon size={14} />
-              <span className="hidden sm:inline">{item.label}</span>
+              <span>{item.label}</span>
               {item.badge > 0 && (
                 <span className={cn(
                   'text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1',
@@ -643,8 +640,8 @@ export default function PortalColaborador() {
         </div>
       </main>
 
-      {/* Footer with Sair */}
-      <footer className="border-t bg-card py-4 mt-auto">
+      {/* Footer - desktop */}
+      <footer className="hidden sm:block border-t bg-card py-4 mt-auto">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 flex items-center justify-between">
           <p className="text-[11px] text-muted-foreground">
             Portal EPI • v1.0.0
@@ -658,6 +655,44 @@ export default function PortalColaborador() {
           </button>
         </div>
       </footer>
+
+      {/* Mobile bottom nav */}
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-30 bg-card border-t shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+        <div className="flex items-stretch">
+          {navItems.map(item => (
+            <button
+              key={item.key}
+              onClick={() => setActiveSection(item.key)}
+              className={cn(
+                'flex-1 flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-colors relative',
+                activeSection === item.key
+                  ? 'text-primary'
+                  : 'text-muted-foreground'
+              )}
+            >
+              {activeSection === item.key && (
+                <div className="absolute top-0 left-3 right-3 h-0.5 bg-primary rounded-b-full" />
+              )}
+              <div className="relative">
+                <item.icon size={18} />
+                {item.badge > 0 && (
+                  <span className="absolute -top-1 -right-2 bg-primary text-primary-foreground text-[8px] font-bold rounded-full min-w-[14px] h-[14px] flex items-center justify-center px-0.5">
+                    {item.badge}
+                  </span>
+                )}
+              </div>
+              <span>{item.shortLabel}</span>
+            </button>
+          ))}
+          <button
+            onClick={signOut}
+            className="flex flex-col items-center gap-0.5 py-2 px-4 text-[10px] font-medium text-muted-foreground"
+          >
+            <LogOut size={18} />
+            <span>Sair</span>
+          </button>
+        </div>
+      </nav>
 
       <ComprovanteSolicitacao
         open={comprovanteOpen}
@@ -700,20 +735,20 @@ export default function PortalColaborador() {
 
 function InfoPill({ icon: Icon, label, value, mono }: { icon: any; label: string; value: string; mono?: boolean }) {
   return (
-    <span className="inline-flex items-center gap-1.5 bg-muted/50 border rounded-full px-3 py-1 text-xs text-muted-foreground">
-      <Icon size={11} />
+    <span className="inline-flex items-center gap-1 sm:gap-1.5 bg-muted/50 border rounded-full px-2 sm:px-3 py-0.5 sm:py-1 text-[10px] sm:text-xs text-muted-foreground">
+      <Icon size={10} className="sm:w-[11px] sm:h-[11px]" />
       <span className="font-medium">{label}:</span>
-      <span className={cn('text-foreground font-semibold', mono && 'font-mono text-[11px]')}>{value}</span>
+      <span className={cn('text-foreground font-semibold', mono && 'font-mono text-[10px]')}>{value}</span>
     </span>
   );
 }
 
 function StatCard({ label, value, detail, accent }: { label: string; value: number; detail: string; accent?: boolean }) {
   return (
-    <div className="bg-card rounded-xl border shadow-sm p-4 text-center">
-      <p className={cn('text-2xl font-bold', accent ? 'text-primary' : 'text-foreground')}>{value}</p>
-      <p className="text-xs font-medium text-foreground mt-0.5">{label}</p>
-      <p className="text-[10px] text-muted-foreground mt-1">{detail}</p>
+    <div className="bg-card rounded-xl border shadow-sm p-2.5 sm:p-4 text-center">
+      <p className={cn('text-xl sm:text-2xl font-bold', accent ? 'text-primary' : 'text-foreground')}>{value}</p>
+      <p className="text-[10px] sm:text-xs font-medium text-foreground mt-0.5">{label}</p>
+      <p className="text-[9px] sm:text-[10px] text-muted-foreground mt-0.5 sm:mt-1 truncate">{detail}</p>
     </div>
   );
 }
