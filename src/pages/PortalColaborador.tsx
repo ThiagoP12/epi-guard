@@ -13,7 +13,7 @@ import SelfieCapture from '@/components/SelfieCapture';
 import {
   LogOut, Package, History, ClipboardCheck, CheckCircle, Clock, XCircle,
   Loader2, Shield, FileText, User, Building2, Hash, MapPin,
-  Camera, PenTool, Send, AlertTriangle, HardHat, ChevronDown
+  Camera, PenTool, Send, AlertTriangle, HardHat
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -122,14 +122,18 @@ export default function PortalColaborador() {
 
     if (data) {
       const prodIds = [...new Set(data.map(s => s.produto_id))];
-      const { data: prodsInfo } = await supabase
-        .from('produtos')
-        .select('id, nome, ca')
-        .in('id', prodIds);
+      let prodsInfo: { id: string; nome: string; ca: string | null }[] = [];
+      if (prodIds.length > 0) {
+        const { data: prods } = await supabase
+          .from('produtos')
+          .select('id, nome, ca')
+          .in('id', prodIds);
+        prodsInfo = prods || [];
+      }
 
       const enriched = data.map(s => ({
         ...s,
-        produto: prodsInfo?.find(p => p.id === s.produto_id) || undefined,
+        produto: prodsInfo.find(p => p.id === s.produto_id) || undefined,
       }));
       setSolicitacoes(enriched);
     }

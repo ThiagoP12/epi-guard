@@ -7,7 +7,7 @@ interface SelfieCaptureProps {
   label?: string;
 }
 
-export default function SelfieCapture({ onCaptureChange, label = 'Selfie de Verificação *' }: SelfieCaptureProps) {
+export default function SelfieCapture({ onCaptureChange, label = 'Selfie do Colaborador *' }: SelfieCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);

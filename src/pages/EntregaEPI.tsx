@@ -558,7 +558,7 @@ export default function EntregaEPI() {
 
             {/* Selfie */}
             <div>
-              <SelfieCapture onCaptureChange={setSelfie} label="Selfie de Verificação do Colaborador *" />
+              <SelfieCapture onCaptureChange={setSelfie} label="Selfie do Colaborador *" />
             </div>
 
             {/* Assinatura */}
