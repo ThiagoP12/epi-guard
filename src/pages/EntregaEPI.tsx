@@ -39,14 +39,19 @@ export default function EntregaEPI() {
         body: { entregaId },
       });
       if (error) throw error;
-      if (!data?.html) throw new Error('PDF HTML not returned');
+      if (!data?.url) throw new Error('URL do documento não retornada');
 
-      // Open HTML in new window for print/save as PDF
-      const win = window.open('', '_blank');
-      if (win) {
-        win.document.write(data.html);
-        win.document.close();
-        setTimeout(() => win.print(), 500);
+      // Open the signed URL from Supabase Storage
+      const win = window.open(data.url, '_blank');
+      if (!win) {
+        // Fallback: create a link and click it
+        const a = document.createElement('a');
+        a.href = data.url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
       }
     } catch (err: any) {
       toast({ title: 'Erro ao gerar PDF', description: err.message, variant: 'destructive' });
