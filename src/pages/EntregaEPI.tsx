@@ -132,28 +132,40 @@ export default function EntregaEPI() {
     setSubmitting(false);
   };
 
+  const selectedColab = colaboradores.find(c => c.id === colaboradorId);
+
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-foreground mb-5">Entrega de EPI</h1>
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-xl font-semibold text-foreground">Entrega de EPI</h1>
+        <p className="text-xs text-muted-foreground mt-0.5">Registre a entrega com assinatura digital</p>
+      </div>
 
       <div className="max-w-2xl">
-        <div className="bg-card rounded-lg border p-5 space-y-5">
+        <div className="bg-card rounded-xl border shadow-sm p-5 space-y-5">
+          {/* Colaborador */}
           <div>
-            <Label>Colaborador *</Label>
+            <Label className="text-xs font-medium">Colaborador *</Label>
             <Select value={colaboradorId} onValueChange={setColaboradorId}>
-              <SelectTrigger className="mt-1"><SelectValue placeholder="Selecionar colaborador..." /></SelectTrigger>
+              <SelectTrigger className="mt-1.5 h-10"><SelectValue placeholder="Selecionar colaborador..." /></SelectTrigger>
               <SelectContent>
                 {colaboradores.map(c => (
                   <SelectItem key={c.id} value={c.id}>{c.nome} — {c.matricula}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {selectedColab && (
+              <p className="text-[11px] text-muted-foreground mt-1.5 pl-0.5">
+                {selectedColab.setor} • {selectedColab.funcao}
+              </p>
+            )}
           </div>
 
+          {/* Item */}
           <div>
-            <Label>Item (EPI/EPC) *</Label>
+            <Label className="text-xs font-medium">Item (EPI/EPC) *</Label>
             <Select value={produtoId} onValueChange={setProdutoId}>
-              <SelectTrigger className="mt-1"><SelectValue placeholder="Selecionar item..." /></SelectTrigger>
+              <SelectTrigger className="mt-1.5 h-10"><SelectValue placeholder="Selecionar item..." /></SelectTrigger>
               <SelectContent>
                 {produtos.map(p => (
                   <SelectItem key={p.id} value={p.id}>{p.nome} — CA: {p.ca || 'N/A'} (Saldo: {p.saldo})</SelectItem>
@@ -162,15 +174,16 @@ export default function EntregaEPI() {
             </Select>
           </div>
 
+          {/* Qty + Motivo */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>Quantidade *</Label>
-              <Input type="number" min={1} max={selectedProduct?.saldo || 999} value={quantidade} onChange={(e) => setQuantidade(Number(e.target.value))} className="mt-1" />
+              <Label className="text-xs font-medium">Quantidade *</Label>
+              <Input type="number" min={1} max={selectedProduct?.saldo || 999} value={quantidade} onChange={(e) => setQuantidade(Number(e.target.value))} className="mt-1.5 h-10" />
             </div>
             <div>
-              <Label>Motivo *</Label>
+              <Label className="text-xs font-medium">Motivo *</Label>
               <Select value={motivo} onValueChange={setMotivo}>
-                <SelectTrigger className="mt-1"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
+                <SelectTrigger className="mt-1.5 h-10"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
                 <SelectContent>
                   {motivos.map(m => (<SelectItem key={m} value={m}>{m}</SelectItem>))}
                 </SelectContent>
@@ -178,26 +191,39 @@ export default function EntregaEPI() {
             </div>
           </div>
 
+          {/* Observação */}
           <div>
-            <Label>Observação</Label>
-            <Textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Observação (opcional)" className="mt-1" rows={2} />
+            <Label className="text-xs font-medium">Observação</Label>
+            <Textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Observação (opcional)" className="mt-1.5" rows={2} />
           </div>
 
+          {/* Assinatura */}
           <div>
-            <Label className="mb-2 block">Assinatura Digital *</Label>
+            <Label className="text-xs font-medium mb-2 block">Assinatura Digital *</Label>
             <SignatureCanvas onSignatureChange={setAssinatura} width={Math.min(460, window.innerWidth - 80)} height={140} />
           </div>
 
-          <div className="flex items-start gap-2 p-3 rounded-md bg-muted/50">
+          {/* Declaração */}
+          <div className="flex items-start gap-2.5 p-3 rounded-lg bg-muted/40 border border-muted">
             <Checkbox id="declaracao" checked={declaracao} onCheckedChange={(v) => setDeclaracao(v === true)} className="mt-0.5" />
-            <label htmlFor="declaracao" className="text-xs text-muted-foreground leading-relaxed cursor-pointer">
+            <label htmlFor="declaracao" className="text-[11px] text-muted-foreground leading-relaxed cursor-pointer">
               Declaro que recebi os Equipamentos de Proteção Individual (EPI) listados acima e me comprometo a utilizá-los adequadamente durante a execução de minhas atividades, conforme orientações recebidas e disposições da NR-06.
             </label>
           </div>
 
-          <Button className="w-full h-12 text-base font-semibold" onClick={handleSubmit} disabled={submitting}>
-            <CheckCircle size={18} className="mr-2" />
-            {submitting ? 'Registrando...' : 'Confirmar Entrega'}
+          {/* Submit */}
+          <Button className="w-full h-11 text-sm font-semibold" onClick={handleSubmit} disabled={submitting}>
+            {submitting ? (
+              <span className="flex items-center gap-2">
+                <span className="h-4 w-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                Registrando...
+              </span>
+            ) : (
+              <>
+                <CheckCircle size={17} className="mr-2" />
+                Confirmar Entrega
+              </>
+            )}
           </Button>
         </div>
       </div>

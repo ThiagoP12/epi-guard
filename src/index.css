@@ -93,6 +93,40 @@
   transform: translateY(-1px);
 }
 
+/* Hover scale utility */
+.hover-scale {
+  @apply transition-transform duration-200;
+}
+.hover-scale:hover {
+  transform: scale(1.02);
+}
+
+/* Staggered animations */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+
+/* Skeleton shimmer */
+.skeleton-shimmer {
+  background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--muted-foreground) / 0.06) 50%, hsl(var(--muted)) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Smooth focus rings */
+*:focus-visible {
+  @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background transition-shadow duration-150;
+}
+
+/* Better table row hover */
+.table-row-hover {
+  @apply transition-colors duration-150;
+}
+.table-row-hover:hover {
+  background-color: hsl(var(--muted) / 0.5);
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
@@ -103,4 +137,17 @@
 ::-webkit-scrollbar-thumb {
   background: hsl(var(--border));
   border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.3);
+}
+
+/* Page transition wrapper */
+.page-enter {
+  @apply animate-fade-in;
+}
+
+/* Toast improvements */
+[data-sonner-toaster] [data-sonner-toast] {
+  @apply shadow-lg;
 }
