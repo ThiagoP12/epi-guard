@@ -121,16 +121,54 @@ export default function Dashboard() {
     const loadAll = async () => {
       setLoading(true);
 
-      let prodQuery = supabase.from('produtos').select('id, nome, estoque_minimo, data_validade, ca, tipo').eq('ativo', true);
-      if (selectedEmpresa) prodQuery = prodQuery.eq('empresa_id', selectedEmpresa.id);
-      const { data: produtos } = await prodQuery;
+      const empresaId = selectedEmpresa?.id;
+      const eqEmpresa = (q: any) => empresaId ? q.eq('empresa_id', empresaId) : q;
+
+      // === PHASE 1: All independent queries in parallel ===
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const rankingStart = new Date();
+      rankingStart.setDate(rankingStart.getDate() - rankingDays);
+      const rankingStartISO = rankingStart.toISOString();
+      const chartStart = new Date();
+      chartStart.setDate(chartStart.getDate() - chartDays);
+      const chartStartISO = new Date(chartStart.getFullYear(), chartStart.getMonth(), chartStart.getDate()).toISOString();
+
+      const [
+        { data: produtos },
+        { count: entregasMes },
+        { count: totalColabs },
+        { data: chartEntregas },
+        { data: entregasData },
+        { data: allItens },
+        { data: entregaIdsForFilter },
+        { data: recentEntregas },
+        { data: recentMov },
+        { data: ccData },
+      ] = await Promise.all([
+        eqEmpresa(supabase.from('produtos').select('id, nome, estoque_minimo, data_validade, ca, tipo').eq('ativo', true)),
+        eqEmpresa(supabase.from('entregas_epi').select('id', { count: 'exact', head: true }).gte('data_hora', startOfMonth)),
+        eqEmpresa(supabase.from('colaboradores').select('id', { count: 'exact', head: true }).eq('ativo', true)),
+        eqEmpresa(supabase.from('entregas_epi').select('data_hora').gte('data_hora', chartStartISO).order('data_hora', { ascending: true })),
+        eqEmpresa(supabase.from('entregas_epi').select('colaborador_id, colaboradores(nome), entrega_epi_itens(quantidade)').gte('data_hora', rankingStartISO).order('data_hora', { ascending: false }).limit(500)),
+        supabase.from('entrega_epi_itens').select('entrega_id, nome_snapshot, quantidade, produto_id, produtos(tipo)').limit(1000),
+        eqEmpresa(supabase.from('entregas_epi').select('id').gte('data_hora', rankingStartISO)),
+        eqEmpresa(supabase.from('entregas_epi').select('id, data_hora, colaborador_id, colaboradores(nome)').order('data_hora', { ascending: false }).limit(5)),
+        eqEmpresa(supabase.from('movimentacoes_estoque').select('id, data_hora, tipo_movimentacao, quantidade, motivo, produtos(nome)').order('data_hora', { ascending: false }).limit(5)),
+        eqEmpresa(supabase.from('colaboradores').select('centro_custo').eq('ativo', true)),
+      ]);
+
+      // === PHASE 2: Saldos in parallel (instead of sequential loop) ===
       let estoqueBaixo = 0;
       const alertsList: Alert[] = [];
 
-      if (produtos) {
-        for (const p of produtos) {
-          const { data: saldo } = await supabase.rpc('get_saldo_produto', { p_produto_id: p.id });
-          const s = typeof saldo === 'number' ? saldo : 0;
+      if (produtos && produtos.length > 0) {
+        const saldoResults = await Promise.all(
+          produtos.map(p => supabase.rpc('get_saldo_produto', { p_produto_id: p.id }))
+        );
+
+        produtos.forEach((p, idx) => {
+          const s = typeof saldoResults[idx].data === 'number' ? saldoResults[idx].data : 0;
           if (s < p.estoque_minimo) {
             estoqueBaixo++;
             alertsList.push({
@@ -148,19 +186,8 @@ export default function Dashboard() {
               alertsList.push({ id: `exp-${p.id}`, severity: 'warning', message: `${p.nome} (CA: ${p.ca || 'N/A'}) — vence em ${dias} dias`, link: '/estoque' });
             }
           }
-        }
+        });
       }
-
-      const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-
-      let entregaQuery = supabase.from('entregas_epi').select('id', { count: 'exact', head: true }).gte('data_hora', startOfMonth);
-      if (selectedEmpresa) entregaQuery = entregaQuery.eq('empresa_id', selectedEmpresa.id);
-      const { count: entregasMes } = await entregaQuery;
-
-      let colabQuery = supabase.from('colaboradores').select('id', { count: 'exact', head: true }).eq('ativo', true);
-      if (selectedEmpresa) colabQuery = colabQuery.eq('empresa_id', selectedEmpresa.id);
-      const { count: totalColabs } = await colabQuery;
 
       const totalEPIs = produtos?.filter(p => p.tipo === 'EPI').length || 0;
       const totalEPCs = produtos?.filter(p => p.tipo === 'EPC').length || 0;
@@ -175,37 +202,28 @@ export default function Dashboard() {
       });
       setAlerts(alertsList);
 
-      // Chart data
+      // === Chart data: group client-side instead of N queries ===
       const days: ChartData[] = [];
+      const entregasByDay = new Map<string, number>();
+      if (chartEntregas) {
+        for (const e of chartEntregas) {
+          const d = new Date(e.data_hora);
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          entregasByDay.set(key, (entregasByDay.get(key) || 0) + 1);
+        }
+      }
       for (let i = chartDays - 1; i >= 0; i--) {
         const d = new Date();
         d.setDate(d.getDate() - i);
-        const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString();
-        const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).toISOString();
-        let dayQuery = supabase.from('entregas_epi').select('id', { count: 'exact', head: true })
-          .gte('data_hora', dayStart).lt('data_hora', dayEnd);
-        if (selectedEmpresa) dayQuery = dayQuery.eq('empresa_id', selectedEmpresa.id);
-        const { count } = await dayQuery;
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         const labelFormat = chartDays <= 7
           ? d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')
           : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-        days.push({ label: labelFormat, entregas: count || 0 });
+        days.push({ label: labelFormat, entregas: entregasByDay.get(key) || 0 });
       }
       setChartData(days);
 
-      // Rankings
-      const rankingStart = new Date();
-      rankingStart.setDate(rankingStart.getDate() - rankingDays);
-      const rankingStartISO = rankingStart.toISOString();
-
-      let entregasItensQuery = supabase.from('entregas_epi')
-        .select('colaborador_id, colaboradores(nome), entrega_epi_itens(quantidade)')
-        .gte('data_hora', rankingStartISO)
-        .order('data_hora', { ascending: false })
-        .limit(500);
-      if (selectedEmpresa) entregasItensQuery = entregasItensQuery.eq('empresa_id', selectedEmpresa.id);
-      const { data: entregasData } = await entregasItensQuery;
-
+      // === Rankings (already fetched above) ===
       if (entregasData) {
         const colabMap = new Map<string, { nome: string; total: number }>();
         for (const e of entregasData as any[]) {
@@ -219,68 +237,34 @@ export default function Dashboard() {
             colabMap.set(key, { nome, total: qtd });
           }
         }
-        const sorted = Array.from(colabMap.values())
-          .sort((a, b) => b.total - a.total)
-          .slice(0, 5)
-          .map(c => ({ nome: c.nome, quantidade: c.total }));
-        setTopColaboradores(sorted);
+        setTopColaboradores(
+          Array.from(colabMap.values())
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 5)
+            .map(c => ({ nome: c.nome, quantidade: c.total }))
+        );
       }
 
-      // Top EPIs and EPCs
-      let itensQuery = supabase.from('entrega_epi_itens')
-        .select('entrega_id, nome_snapshot, quantidade, produto_id, produtos(tipo)')
-        .limit(1000);
-      const { data: allItens } = await itensQuery;
-
+      // === Top EPIs/EPCs (already fetched above) ===
       if (allItens) {
         let filteredItens = allItens as any[];
-        let entregaFilterQuery = supabase.from('entregas_epi')
-          .select('id')
-          .gte('data_hora', rankingStartISO);
-        if (selectedEmpresa) entregaFilterQuery = entregaFilterQuery.eq('empresa_id', selectedEmpresa.id);
-        const { data: entregaIds } = await entregaFilterQuery;
-        if (entregaIds) {
-          const idSet = new Set(entregaIds.map(e => e.id));
+        if (entregaIdsForFilter) {
+          const idSet = new Set(entregaIdsForFilter.map(e => e.id));
           filteredItens = filteredItens.filter((i: any) => idSet.has(i.entrega_id));
         }
-
         const epiMap = new Map<string, number>();
         const epcMap = new Map<string, number>();
-
         for (const item of filteredItens) {
           const tipo = item.produtos?.tipo || 'EPI';
           const nome = item.nome_snapshot;
           const map = tipo === 'EPC' ? epcMap : epiMap;
           map.set(nome, (map.get(nome) || 0) + item.quantidade);
         }
-
-        setTopEPIs(
-          Array.from(epiMap.entries())
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 5)
-            .map(([nome, quantidade]) => ({ nome, quantidade }))
-        );
-        setTopEPCs(
-          Array.from(epcMap.entries())
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 5)
-            .map(([nome, quantidade]) => ({ nome, quantidade }))
-        );
+        setTopEPIs(Array.from(epiMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([nome, quantidade]) => ({ nome, quantidade })));
+        setTopEPCs(Array.from(epcMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([nome, quantidade]) => ({ nome, quantidade })));
       }
 
-      // Recent activities
-      let recentEntregaQuery = supabase.from('entregas_epi')
-        .select('id, data_hora, colaborador_id, colaboradores(nome)')
-        .order('data_hora', { ascending: false }).limit(5);
-      if (selectedEmpresa) recentEntregaQuery = recentEntregaQuery.eq('empresa_id', selectedEmpresa.id);
-      const { data: recentEntregas } = await recentEntregaQuery;
-
-      let recentMovQuery = supabase.from('movimentacoes_estoque')
-        .select('id, data_hora, tipo_movimentacao, quantidade, motivo, produtos(nome)')
-        .order('data_hora', { ascending: false }).limit(5);
-      if (selectedEmpresa) recentMovQuery = recentMovQuery.eq('empresa_id', selectedEmpresa.id);
-      const { data: recentMov } = await recentMovQuery;
-
+      // === Recent activities ===
       const acts: RecentActivity[] = [];
       recentEntregas?.forEach((e: any) => {
         acts.push({
@@ -301,10 +285,7 @@ export default function Dashboard() {
       acts.sort((a, b) => b.time.localeCompare(a.time));
       setActivities(acts.slice(0, 8));
 
-      // Centro de Custo
-      let ccQuery = supabase.from('colaboradores').select('centro_custo').eq('ativo', true);
-      if (selectedEmpresa) ccQuery = ccQuery.eq('empresa_id', selectedEmpresa.id);
-      const { data: ccData } = await ccQuery;
+      // === Centro de Custo ===
       if (ccData) {
         const ccMap = new Map<string, number>();
         for (const c of ccData as any[]) {
