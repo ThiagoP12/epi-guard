@@ -192,7 +192,7 @@ export default function Layout() {
 
         {/* Sidebar */}
         <aside className={cn(
-          'fixed lg:static inset-y-0 left-0 top-11 sm:top-14 z-20 w-56 bg-sidebar flex flex-col transition-transform duration-250 ease-out will-change-transform',
+          'fixed lg:static inset-y-0 left-0 top-11 sm:top-14 z-20 w-56 h-[calc(100vh-2.75rem)] sm:h-[calc(100vh-3.5rem)] bg-sidebar flex flex-col transition-transform duration-250 ease-out will-change-transform',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}>
           <nav className="flex-1 py-3 px-2 overflow-y-auto space-y-0.5">
