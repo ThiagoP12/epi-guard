@@ -82,7 +82,7 @@ export default function Layout() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Top Bar */}
-      <header className="h-11 sm:h-14 bg-primary flex items-center justify-between px-2.5 sm:px-4 shrink-0 z-30 relative shadow-sm">
+      <header className="h-11 sm:h-14 bg-primary flex items-center justify-between px-2.5 sm:px-4 shrink-0 z-30 fixed top-0 left-0 right-0 shadow-sm">
         <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -180,7 +180,7 @@ export default function Layout() {
 
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden mt-11 sm:mt-14">
         {/* Overlay */}
         <div
           className={cn(
