@@ -1,53 +1,23 @@
 
 
-## Plan: Solicitações List Columns, Approval Details & Audit Trail
+## Plan: Integrate Unidades (Revendas) Page
 
-### 1. Database Migration — Create audit log table
+The `empresas` table already has the required fields (`id`, `nome`, `ativo`, `matriz_id`, `cnpj`, etc.), so no database migration is needed. The `Revendas.tsx` page exists but is **not routed or accessible** — it's missing from both `App.tsx` routes and the sidebar menu.
 
-Create `audit_logs` table:
-- `id` uuid PK
-- `evento` text NOT NULL (e.g. 'SOLICITACAO_APROVADA', 'SOLICITACAO_REPROVADA')
-- `solicitacao_id` uuid
-- `usuario_id` uuid
-- `unidade_id` uuid (empresa_id)
-- `data_hora` timestamptz default now()
-- `detalhes` jsonb (optional extra data)
-- `empresa_id` uuid
+### Changes
 
-RLS: read/insert for admin/almoxarifado with empresa access, super_admin full access.
+1. **Add route in `App.tsx`** — Import `Revendas` and add `<Route path="/revendas" element={<Revendas />} />` inside the Layout routes.
 
-### 2. Update `Solicitacoes.tsx` — Enrich data & update list
+2. **Add sidebar menu item in `Layout.tsx`** — Add `{ label: 'Unidades', icon: Building2, path: '/revendas', phase: 1 }` to `menuItems` array (after Dashboard or Configurações).
 
-**Data loading changes:**
-- Fetch `empresas` names for each `empresa_id` to show "Unidade (revenda)"
-- Fetch `profiles` names for each `aprovado_por` to show approver name
-- Add `aprovado_por`, `aprovado_em`, `observacao_aprovacao` to the Solicitacao interface
-
-**List view — add columns to each card:**
-- Show short ID (`#XXXXXXXX`)
-- Show Unidade (empresa name)
-- Show "Aprovado por: Nome" or "—"
-- Show "Data aprovação" if exists
-
-**Detail dialog — add "Aprovação" block:**
-- New section between Item info and Audit info
-- Shows: Status (Aprovada/Reprovada), Usuário aprovador (name), Data/hora, Observação
-
-### 3. Write audit log on approve/reject
-
-In `handleApprove` and `handleReject`, insert into `audit_logs`:
-```
-{ evento: 'SOLICITACAO_APROVADA', solicitacao_id, usuario_id, unidade_id: empresa_id, data_hora }
-```
-
-Same pattern for status transitions (EM_SEPARACAO, BAIXADA_NO_ESTOQUE, ENTREGUE, CONFIRMADA).
-
-### 4. Update `Auditoria.tsx`
-
-Add ability to show `audit_logs` entries alongside `movimentacoes_estoque`, or add a tab/filter for solicitation audit events.
+3. **Enhance `Revendas.tsx`** — Add CRUD capabilities:
+   - **Create new unit** (filial): button + dialog with nome field, auto-links to selected matriz via `matriz_id`. Only for admin/super_admin.
+   - **Toggle ativo**: switch on each card to activate/deactivate units.
+   - **Edit nome** (currently disabled): allow admin/super_admin to edit the name.
+   - Rename page title from "Revendas" to "Unidades" for consistency with the spec.
 
 ### Files affected
-- New migration: `audit_logs` table + RLS
-- `src/pages/Solicitacoes.tsx` — enriched data, list layout, detail approval block, audit log inserts
-- `src/pages/Auditoria.tsx` — optionally show audit_logs
+- `src/App.tsx` — add route
+- `src/components/Layout.tsx` — add menu item
+- `src/pages/Revendas.tsx` — add create dialog, ativo toggle, allow name editing
 
