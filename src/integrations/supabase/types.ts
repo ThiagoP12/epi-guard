@@ -14,6 +14,61 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_logs: {
+        Row: {
+          data_hora: string
+          detalhes: Json | null
+          empresa_id: string | null
+          evento: string
+          id: string
+          solicitacao_id: string | null
+          unidade_id: string | null
+          usuario_id: string | null
+        }
+        Insert: {
+          data_hora?: string
+          detalhes?: Json | null
+          empresa_id?: string | null
+          evento: string
+          id?: string
+          solicitacao_id?: string | null
+          unidade_id?: string | null
+          usuario_id?: string | null
+        }
+        Update: {
+          data_hora?: string
+          detalhes?: Json | null
+          empresa_id?: string | null
+          evento?: string
+          id?: string
+          solicitacao_id?: string | null
+          unidade_id?: string | null
+          usuario_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_logs_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "solicitacoes_epi"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_logs_unidade_id_fkey"
+            columns: ["unidade_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       colaboradores: {
         Row: {
           ativo: boolean
