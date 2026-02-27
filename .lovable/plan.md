@@ -1,66 +1,53 @@
 
 
-## Expansão do Fluxo de Status das Solicitações de EPI
+## Plan: Solicitações List Columns, Approval Details & Audit Trail
 
-### Resumo
-Adicionar novos campos e expandir os status da tabela `solicitacoes_epi` para refletir o fluxo completo de aprovação com rastreabilidade do usuário aprovador.
+### 1. Database Migration — Create audit log table
 
-### 1. Migração de Banco de Dados
+Create `audit_logs` table:
+- `id` uuid PK
+- `evento` text NOT NULL (e.g. 'SOLICITACAO_APROVADA', 'SOLICITACAO_REPROVADA')
+- `solicitacao_id` uuid
+- `usuario_id` uuid
+- `unidade_id` uuid (empresa_id)
+- `data_hora` timestamptz default now()
+- `detalhes` jsonb (optional extra data)
+- `empresa_id` uuid
 
-Adicionar colunas faltantes à tabela `solicitacoes_epi`:
-- `criado_por_usuario_id` (uuid, nullable) — quem criou a solicitação
-- `observacao_aprovacao` (text, nullable) — observação ao aprovar/reprovar
+RLS: read/insert for admin/almoxarifado with empresa access, super_admin full access.
 
-**Nota:** `aprovado_por` e `aprovado_em` já existem. `unidade_id` mapeia para `empresa_id` que já existe.
+### 2. Update `Solicitacoes.tsx` — Enrich data & update list
 
-Migrar os status existentes para os novos valores:
-- `pendente` → `ENVIADA`
-- `aprovado` → `APROVADA`
-- `rejeitado` → `REPROVADA`
-- `entregue` → `ENTREGUE`
+**Data loading changes:**
+- Fetch `empresas` names for each `empresa_id` to show "Unidade (revenda)"
+- Fetch `profiles` names for each `aprovado_por` to show approver name
+- Add `aprovado_por`, `aprovado_em`, `observacao_aprovacao` to the Solicitacao interface
 
-### 2. Atualizar `src/pages/Solicitacoes.tsx`
+**List view — add columns to each card:**
+- Show short ID (`#XXXXXXXX`)
+- Show Unidade (empresa name)
+- Show "Aprovado por: Nome" or "—"
+- Show "Data aprovação" if exists
 
-- Atualizar `statusConfig` com todos os 8 status: `CRIADA`, `ENVIADA`, `APROVADA`, `REPROVADA`, `EM_SEPARACAO`, `BAIXADA_NO_ESTOQUE`, `ENTREGUE`, `CONFIRMADA`
-- Atualizar filtros e contadores KPI para os novos status
-- No `handleApprove`: gravar `observacao_aprovacao` junto com `aprovado_por` e `aprovado_em`, usar status `APROVADA`
-- No `handleReject`: usar status `REPROVADA`
-- No `handleDeliver`: usar status `ENTREGUE`
-- Adicionar botões para transições intermediárias (EM_SEPARACAO, BAIXADA_NO_ESTOQUE, CONFIRMADA)
-- Mostrar nome do aprovador nos detalhes (buscar da tabela `profiles`)
-- Adicionar campo `observacao_aprovacao` no dialog de aprovação
+**Detail dialog — add "Aprovação" block:**
+- New section between Item info and Audit info
+- Shows: Status (Aprovada/Reprovada), Usuário aprovador (name), Data/hora, Observação
 
-### 3. Atualizar `src/pages/PortalColaborador.tsx`
+### 3. Write audit log on approve/reject
 
-- Atualizar `statusConfig` com os novos status
-- Ajustar filtros de histórico e recebimentos para os novos valores
-- Atualizar contadores (pendingCount usa `ENVIADA` em vez de `pendente`)
-
-### 4. Atualizar `src/components/ComprovanteSolicitacao.tsx`
-
-- Atualizar mapeamento `statusLabel` para os novos valores
-
-### 5. Atualizar `src/pages/Dashboard.tsx`
-
-- Ajustar queries que filtram por status antigos para usar os novos valores
-
-### Detalhes Técnicos
-
-**SQL de migração:**
-```sql
-ALTER TABLE solicitacoes_epi 
-  ADD COLUMN IF NOT EXISTS criado_por_usuario_id uuid,
-  ADD COLUMN IF NOT EXISTS observacao_aprovacao text;
-
-UPDATE solicitacoes_epi SET status = 'ENVIADA' WHERE status = 'pendente';
-UPDATE solicitacoes_epi SET status = 'APROVADA' WHERE status = 'aprovado';
-UPDATE solicitacoes_epi SET status = 'REPROVADA' WHERE status = 'rejeitado';
-UPDATE solicitacoes_epi SET status = 'ENTREGUE' WHERE status = 'entregue';
+In `handleApprove` and `handleReject`, insert into `audit_logs`:
+```
+{ evento: 'SOLICITACAO_APROVADA', solicitacao_id, usuario_id, unidade_id: empresa_id, data_hora }
 ```
 
-**Arquivos afetados:**
-- `src/pages/Solicitacoes.tsx` — principal, fluxo de aprovação
-- `src/pages/PortalColaborador.tsx` — visualização do colaborador
-- `src/components/ComprovanteSolicitacao.tsx` — labels de status
-- `src/pages/Dashboard.tsx` — contadores e filtros
+Same pattern for status transitions (EM_SEPARACAO, BAIXADA_NO_ESTOQUE, ENTREGUE, CONFIRMADA).
+
+### 4. Update `Auditoria.tsx`
+
+Add ability to show `audit_logs` entries alongside `movimentacoes_estoque`, or add a tab/filter for solicitation audit events.
+
+### Files affected
+- New migration: `audit_logs` table + RLS
+- `src/pages/Solicitacoes.tsx` — enriched data, list layout, detail approval block, audit log inserts
+- `src/pages/Auditoria.tsx` — optionally show audit_logs
 
