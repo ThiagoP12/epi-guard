@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { CheckCircle, XCircle, Clock, Package, Search, Loader2, ClipboardList, FileText, User, Calendar, Hash, Shield, ArrowRight, Building2 } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Package, Search, Loader2, ClipboardList, FileText, User, Calendar, Hash, Shield, ArrowRight, Building2, BoxSelect, PackageCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
@@ -191,8 +191,36 @@ export default function Solicitacoes() {
     setProcessing(false);
   };
 
-  // Separar: creates SAIDA + sets SEPARADO
-  const handleSeparar = async (sol: Solicitacao) => {
+  // Em Separação: marks as EM_SEPARACAO (no stock exit yet)
+  const handleEmSeparacao = async (sol: Solicitacao) => {
+    setProcessing(true);
+    try {
+      const { error } = await supabase
+        .from('solicitacoes_epi')
+        .update({ status: 'EM_SEPARACAO' } as any)
+        .eq('id', sol.id);
+      if (error) throw error;
+
+      await insertAuditLog('SOLICITACAO_EM_SEPARACAO', sol.id, sol.empresa_id);
+
+      await sendNotificationEmail(
+        sol.colaborador,
+        sol.id,
+        'EPI em separação',
+        `<p>O item <strong>${sol.produto?.nome || 'EPI'}</strong> da sua solicitação está sendo <strong>separado pelo estoque</strong>.</p><p>Você será notificado quando estiver disponível para retirada.</p>`
+      );
+
+      toast({ title: '📦 Em separação!', description: 'Colaborador notificado.' });
+      setDetailOpen(false);
+      await load();
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+    setProcessing(false);
+  };
+
+  // Baixa no estoque: creates SAIDA + sets BAIXADA_NO_ESTOQUE
+  const handleBaixaEstoque = async (sol: Solicitacao) => {
     setProcessing(true);
     try {
       // Create stock exit
@@ -206,29 +234,28 @@ export default function Solicitacoes() {
           empresa_id: sol.empresa_id || null,
           usuario_id: user?.id,
           solicitacao_id: sol.id,
-          motivo: `Separação - ${sol.produto?.nome || 'EPI'}`,
+          motivo: `Baixa estoque - ${sol.produto?.nome || 'EPI'}`,
           observacao: `Solicitação #${sol.id.slice(0, 8)}`,
         } as any);
       if (movError) throw movError;
 
-      // Update status to SEPARADO
+      // Update status to BAIXADA_NO_ESTOQUE
       const { error } = await supabase
         .from('solicitacoes_epi')
-        .update({ status: 'SEPARADO' } as any)
+        .update({ status: 'BAIXADA_NO_ESTOQUE' } as any)
         .eq('id', sol.id);
       if (error) throw error;
 
-      await insertAuditLog('SOLICITACAO_SEPARADO', sol.id, sol.empresa_id);
+      await insertAuditLog('SOLICITACAO_BAIXADA_NO_ESTOQUE', sol.id, sol.empresa_id);
 
-      // Send email notification
       await sendNotificationEmail(
         sol.colaborador,
         sol.id,
         'Atualização da sua solicitação de EPI',
-        `<p>O item <strong>${sol.produto?.nome || 'EPI'}</strong> da sua solicitação já foi <strong>separado do estoque</strong> e está disponível para retirada.</p><p>Aguarde a entrega e a confirmação de recebimento.</p>`
+        `<p>O item <strong>${sol.produto?.nome || 'EPI'}</strong> da sua solicitação já foi <strong>baixado do estoque</strong> e está disponível para retirada.</p><p>Aguarde a entrega e a confirmação de recebimento.</p>`
       );
 
-      toast({ title: '✅ Item separado!', description: 'Baixa no estoque registrada. Colaborador notificado.' });
+      toast({ title: '✅ Baixa registrada!', description: 'Saída do estoque registrada. Colaborador notificado.' });
       setDetailOpen(false);
       await load();
     } catch (err: any) {
@@ -268,7 +295,8 @@ export default function Solicitacoes() {
     ENVIADA: { icon: Clock, color: 'text-[hsl(var(--status-warning))]', bg: 'bg-[hsl(var(--status-warning-bg))]', label: 'Enviada', accent: 'border-l-[hsl(var(--status-warning))]' },
     APROVADA: { icon: CheckCircle, color: 'text-[hsl(var(--status-ok))]', bg: 'bg-[hsl(var(--status-ok-bg))]', label: 'Aprovada', accent: 'border-l-[hsl(var(--status-ok))]' },
     REPROVADA: { icon: XCircle, color: 'text-[hsl(var(--status-danger))]', bg: 'bg-[hsl(var(--status-danger-bg))]', label: 'Reprovada', accent: 'border-l-[hsl(var(--status-danger))]' },
-    SEPARADO: { icon: Package, color: 'text-[hsl(280,60%,55%)]', bg: 'bg-[hsl(280,60%,55%)]/10', label: 'Separado', accent: 'border-l-[hsl(280,60%,55%)]' },
+    EM_SEPARACAO: { icon: BoxSelect, color: 'text-[hsl(var(--status-warning))]', bg: 'bg-[hsl(var(--status-warning-bg))]', label: 'Em Separação', accent: 'border-l-[hsl(var(--status-warning))]' },
+    BAIXADA_NO_ESTOQUE: { icon: PackageCheck, color: 'text-[hsl(280,60%,55%)]', bg: 'bg-[hsl(280,60%,55%)]/10', label: 'Baixa Estoque', accent: 'border-l-[hsl(280,60%,55%)]' },
     ENTREGUE: { icon: Package, color: 'text-primary', bg: 'bg-primary/10', label: 'Entregue', accent: 'border-l-primary' },
     CONFIRMADA: { icon: CheckCircle, color: 'text-[hsl(var(--status-ok))]', bg: 'bg-[hsl(var(--status-ok-bg))]', label: 'Confirmada', accent: 'border-l-[hsl(var(--status-ok))]' },
   };
@@ -277,7 +305,8 @@ export default function Solicitacoes() {
     ENVIADA: allSolicitacoes.filter(s => s.status === 'ENVIADA').length,
     APROVADA: allSolicitacoes.filter(s => s.status === 'APROVADA').length,
     REPROVADA: allSolicitacoes.filter(s => s.status === 'REPROVADA').length,
-    SEPARADO: allSolicitacoes.filter(s => s.status === 'SEPARADO').length,
+    EM_SEPARACAO: allSolicitacoes.filter(s => s.status === 'EM_SEPARACAO').length,
+    BAIXADA_NO_ESTOQUE: allSolicitacoes.filter(s => s.status === 'BAIXADA_NO_ESTOQUE').length,
     ENTREGUE: allSolicitacoes.filter(s => s.status === 'ENTREGUE').length,
     CONFIRMADA: allSolicitacoes.filter(s => s.status === 'CONFIRMADA').length,
     todos: allSolicitacoes.length,
@@ -303,8 +332,8 @@ export default function Solicitacoes() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
-        {(['ENVIADA', 'APROVADA', 'REPROVADA', 'SEPARADO', 'ENTREGUE', 'CONFIRMADA', 'todos'] as const).map(s => {
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-2.5">
+        {(['ENVIADA', 'APROVADA', 'REPROVADA', 'EM_SEPARACAO', 'BAIXADA_NO_ESTOQUE', 'ENTREGUE', 'CONFIRMADA', 'todos'] as const).map(s => {
           const cfg = s === 'todos'
             ? { icon: FileText, color: 'text-muted-foreground', bg: 'bg-muted', label: 'Todos' }
             : statusConfig[s];
@@ -421,7 +450,7 @@ export default function Solicitacoes() {
                   </div>
                   <div className="flex flex-col items-end gap-1.5 shrink-0">
                     <div className="flex items-center gap-1">
-                      {['SEPARADO', 'ENTREGUE', 'CONFIRMADA'].includes(s.status) && (
+                      {['EM_SEPARACAO', 'BAIXADA_NO_ESTOQUE', 'ENTREGUE', 'CONFIRMADA'].includes(s.status) && (
                         <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold", statusConfig.APROVADA.bg, statusConfig.APROVADA.color)}>
                           <CheckCircle size={12} />
                           Aprovada
@@ -465,7 +494,7 @@ export default function Solicitacoes() {
                 const Icon = cfg.icon;
                 return (
                   <div className="flex items-center gap-2">
-                    {['SEPARADO', 'ENTREGUE', 'CONFIRMADA'].includes(selected.status) && (
+                    {['EM_SEPARACAO', 'BAIXADA_NO_ESTOQUE', 'ENTREGUE', 'CONFIRMADA'].includes(selected.status) && (
                       <div className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold", statusConfig.APROVADA.bg, statusConfig.APROVADA.color)}>
                         <CheckCircle size={14} /> Aprovada
                       </div>
@@ -543,7 +572,7 @@ export default function Solicitacoes() {
               </div>
 
               {/* Aprovação block */}
-              {(selected.aprovado_por || ['APROVADA', 'REPROVADA', 'SEPARADO', 'ENTREGUE', 'CONFIRMADA'].includes(selected.status)) && (
+              {(selected.aprovado_por || ['APROVADA', 'REPROVADA', 'EM_SEPARACAO', 'BAIXADA_NO_ESTOQUE', 'ENTREGUE', 'CONFIRMADA'].includes(selected.status)) && (
                 <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
                     <Shield size={11} /> Aprovação
@@ -634,21 +663,32 @@ export default function Solicitacoes() {
                 </div>
               )}
 
-              {/* Actions for APROVADA - separate stock */}
+              {/* Actions for APROVADA - start separation */}
               {selected.status === 'APROVADA' && (
                 <div className="border-t pt-4">
-                  <p className="text-xs text-muted-foreground mb-3">Aprovada. Separe o item e registre a baixa no estoque.</p>
-                  <Button className="w-full gap-1.5" onClick={() => handleSeparar(selected)} disabled={processing}>
-                    {processing ? <Loader2 size={15} className="animate-spin" /> : <Package size={15} />}
-                    Separar e Dar Baixa no Estoque
+                  <p className="text-xs text-muted-foreground mb-3">Aprovada. Inicie a separação do item no estoque.</p>
+                  <Button className="w-full gap-1.5" onClick={() => handleEmSeparacao(selected)} disabled={processing}>
+                    {processing ? <Loader2 size={15} className="animate-spin" /> : <BoxSelect size={15} />}
+                    Iniciar Separação
                   </Button>
                 </div>
               )}
 
-              {/* Actions for SEPARADO - confirm delivery */}
-              {selected.status === 'SEPARADO' && (
+              {/* Actions for EM_SEPARACAO - register stock exit */}
+              {selected.status === 'EM_SEPARACAO' && (
                 <div className="border-t pt-4">
-                  <p className="text-xs text-muted-foreground mb-3">Item separado. Confirme a entrega ao colaborador.</p>
+                  <p className="text-xs text-muted-foreground mb-3">Em separação. Registre a saída/baixa no estoque.</p>
+                  <Button className="w-full gap-1.5" onClick={() => handleBaixaEstoque(selected)} disabled={processing}>
+                    {processing ? <Loader2 size={15} className="animate-spin" /> : <PackageCheck size={15} />}
+                    Dar Baixa no Estoque
+                  </Button>
+                </div>
+              )}
+
+              {/* Actions for BAIXADA_NO_ESTOQUE - confirm delivery */}
+              {selected.status === 'BAIXADA_NO_ESTOQUE' && (
+                <div className="border-t pt-4">
+                  <p className="text-xs text-muted-foreground mb-3">Baixa registrada. Confirme a entrega ao colaborador.</p>
                   <Button className="w-full gap-1.5" onClick={() => handleDeliver(selected)} disabled={processing}>
                     {processing ? <Loader2 size={15} className="animate-spin" /> : <Package size={15} />}
                     Confirmar Entrega
@@ -687,7 +727,8 @@ export default function Solicitacoes() {
 const TIMELINE_STEPS = [
   { key: 'ENVIADA', label: 'Enviada' },
   { key: 'APROVADA', label: 'Aprovada' },
-  { key: 'SEPARADO', label: 'Separado' },
+  { key: 'EM_SEPARACAO', label: 'Em Separação' },
+  { key: 'BAIXADA_NO_ESTOQUE', label: 'Baixa Estoque' },
   { key: 'ENTREGUE', label: 'Entregue' },
   { key: 'CONFIRMADA', label: 'Confirmada' },
 ];

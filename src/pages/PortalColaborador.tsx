@@ -330,7 +330,8 @@ export default function PortalColaborador() {
     ENVIADA: { icon: Clock, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800', label: 'Enviada' },
     APROVADA: { icon: CheckCircle, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800', label: 'Aprovada' },
     REPROVADA: { icon: XCircle, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800', label: 'Reprovada' },
-    SEPARADO: { icon: Package, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800', label: 'Separado' },
+    EM_SEPARACAO: { icon: Package, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800', label: 'Em Separação' },
+    BAIXADA_NO_ESTOQUE: { icon: Package, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800', label: 'Baixa Estoque' },
     ENTREGUE: { icon: Package, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800', label: 'Entregue' },
     CONFIRMADA: { icon: CheckCircle, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800', label: 'Confirmada' },
   };
@@ -630,7 +631,7 @@ export default function PortalColaborador() {
                             {format(new Date(s.created_at), 'dd/MM/yyyy HH:mm')}
                           </span>
                           <div className="flex gap-1.5">
-                            {['APROVADA', 'SEPARADO', 'ENTREGUE', 'CONFIRMADA'].includes(s.status) && (
+                            {['APROVADA', 'EM_SEPARACAO', 'BAIXADA_NO_ESTOQUE', 'ENTREGUE', 'CONFIRMADA'].includes(s.status) && (
                               <Button variant="outline" size="sm" className="h-7 text-[11px] gap-1 px-2" onClick={() => { setComprovanteSolicitacao(s); setComprovanteOpen(true); }}>
                                 <Eye size={12} /> Comprovante
                               </Button>
@@ -998,7 +999,8 @@ export default function PortalColaborador() {
 const TIMELINE_STEPS = [
   { key: 'ENVIADA', label: 'Enviada' },
   { key: 'APROVADA', label: 'Aprovada' },
-  { key: 'SEPARADO', label: 'Separado' },
+  { key: 'EM_SEPARACAO', label: 'Em Separação' },
+  { key: 'BAIXADA_NO_ESTOQUE', label: 'Baixa Estoque' },
   { key: 'ENTREGUE', label: 'Entregue' },
   { key: 'CONFIRMADA', label: 'Confirmada' },
 ];
