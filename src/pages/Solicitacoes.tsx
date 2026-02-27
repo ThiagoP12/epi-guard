@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { CheckCircle, XCircle, Clock, Package, Search, Loader2, ClipboardList, FileText, User, Calendar, Hash, Shield, ArrowRight } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Package, Search, Loader2, ClipboardList, FileText, User, Calendar, Hash, Shield, ArrowRight, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
@@ -28,8 +28,13 @@ interface Solicitacao {
   user_agent: string | null;
   pdf_hash: string | null;
   declaracao_aceita: boolean;
+  aprovado_por: string | null;
+  aprovado_em: string | null;
+  observacao_aprovacao: string | null;
   colaborador?: { nome: string; matricula: string; cpf: string | null; setor: string; funcao: string };
   produto?: { nome: string; ca: string | null };
+  empresa_nome?: string;
+  aprovador_nome?: string;
 }
 
 export default function Solicitacoes() {
@@ -47,6 +52,20 @@ export default function Solicitacoes() {
   const [observacaoAprovacao, setObservacaoAprovacao] = useState('');
   const [processing, setProcessing] = useState(false);
 
+  const insertAuditLog = async (evento: string, solicitacaoId: string, empresaId: string | null) => {
+    try {
+      await supabase.from('audit_logs').insert({
+        evento,
+        solicitacao_id: solicitacaoId,
+        usuario_id: user?.id,
+        unidade_id: empresaId,
+        empresa_id: empresaId,
+      } as any);
+    } catch (e) {
+      console.error('Audit log error:', e);
+    }
+  };
+
   const load = async () => {
     setLoading(true);
     let query = supabase
@@ -60,16 +79,25 @@ export default function Solicitacoes() {
     if (data) {
       const colabIds = [...new Set(data.map(s => s.colaborador_id))];
       const prodIds = [...new Set(data.map(s => s.produto_id))];
+      const empresaIds = [...new Set(data.map(s => s.empresa_id).filter(Boolean))] as string[];
+      const aprovadorIds = [...new Set(data.map(s => s.aprovado_por).filter(Boolean))] as string[];
 
-      const [colabRes, prodRes] = await Promise.all([
+      const [colabRes, prodRes, empresaRes, aprovadorRes] = await Promise.all([
         colabIds.length > 0 ? supabase.from('colaboradores').select('id, nome, matricula, cpf, setor, funcao').in('id', colabIds) : { data: [] },
         prodIds.length > 0 ? supabase.from('produtos').select('id, nome, ca').in('id', prodIds) : { data: [] },
+        empresaIds.length > 0 ? supabase.from('empresas').select('id, nome').in('id', empresaIds) : { data: [] },
+        aprovadorIds.length > 0 ? supabase.from('profiles').select('id, nome').in('id', aprovadorIds) : { data: [] },
       ]);
+
+      const empresaMap = new Map((empresaRes.data || []).map(e => [e.id, e.nome]));
+      const aprovadorMap = new Map((aprovadorRes.data || []).map(p => [p.id, p.nome]));
 
       const enriched = data.map(s => ({
         ...s,
         colaborador: colabRes.data?.find(c => c.id === s.colaborador_id) || undefined,
         produto: prodRes.data?.find(p => p.id === s.produto_id) || undefined,
+        empresa_nome: s.empresa_id ? empresaMap.get(s.empresa_id) || '—' : '—',
+        aprovador_nome: s.aprovado_por ? aprovadorMap.get(s.aprovado_por) || '—' : undefined,
       }));
       setAllSolicitacoes(enriched as Solicitacao[]);
     }
@@ -89,7 +117,6 @@ export default function Solicitacoes() {
   const handleApprove = async (sol: Solicitacao) => {
     setProcessing(true);
     try {
-      // 1. Update status to approved
       const { error } = await supabase
         .from('solicitacoes_epi')
         .update({ 
@@ -101,7 +128,6 @@ export default function Solicitacoes() {
         .eq('id', sol.id);
       if (error) throw error;
 
-      // 2. Create stock movement (saida)
       const { error: movError } = await supabase
         .from('movimentacoes_estoque')
         .insert({
@@ -115,6 +141,8 @@ export default function Solicitacoes() {
           observacao: `Solicitação ${sol.id.slice(0, 8)}`,
         } as any);
       if (movError) throw movError;
+
+      await insertAuditLog('SOLICITACAO_APROVADA', sol.id, sol.empresa_id);
 
       toast({ title: 'Solicitação aprovada!', description: 'Estoque atualizado automaticamente.' });
       setDetailOpen(false);
@@ -138,6 +166,9 @@ export default function Solicitacoes() {
         .update({ status: 'REPROVADA', aprovado_por: user?.id, aprovado_em: new Date().toISOString(), motivo_rejeicao: motivoRejeicao })
         .eq('id', sol.id);
       if (error) throw error;
+
+      await insertAuditLog('SOLICITACAO_REPROVADA', sol.id, sol.empresa_id);
+
       toast({ title: 'Solicitação rejeitada' });
       setDetailOpen(false);
       setMotivoRejeicao('');
@@ -148,15 +179,13 @@ export default function Solicitacoes() {
     setProcessing(false);
   };
 
-  const handleDeliver = async (sol: Solicitacao) => {
+  const handleStatusTransition = async (sol: Solicitacao, newStatus: string, evento: string, successMsg: string) => {
     setProcessing(true);
     try {
-      const { error } = await supabase
-        .from('solicitacoes_epi')
-        .update({ status: 'ENTREGUE' })
-        .eq('id', sol.id);
+      const { error } = await supabase.from('solicitacoes_epi').update({ status: newStatus } as any).eq('id', sol.id);
       if (error) throw error;
-      toast({ title: '✅ Entrega confirmada!' });
+      await insertAuditLog(evento, sol.id, sol.empresa_id);
+      toast({ title: successMsg });
       setDetailOpen(false);
       await load();
     } catch (err: any) {
@@ -165,10 +194,15 @@ export default function Solicitacoes() {
     setProcessing(false);
   };
 
+  const handleDeliver = async (sol: Solicitacao) => {
+    await handleStatusTransition(sol, 'ENTREGUE', 'SOLICITACAO_ENTREGUE', '✅ Entrega confirmada!');
+  };
+
   const filtered = solicitacoes.filter(s =>
     !search || s.colaborador?.nome?.toLowerCase().includes(search.toLowerCase()) ||
     s.produto?.nome?.toLowerCase().includes(search.toLowerCase()) ||
-    s.colaborador?.matricula?.toLowerCase().includes(search.toLowerCase())
+    s.colaborador?.matricula?.toLowerCase().includes(search.toLowerCase()) ||
+    s.id.toLowerCase().includes(search.toLowerCase())
   );
 
   const statusConfig: Record<string, { icon: typeof Clock; color: string; bg: string; label: string; accent: string }> = {
@@ -262,7 +296,7 @@ export default function Solicitacoes() {
         <Input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Buscar por nome, matrícula ou produto..."
+          placeholder="Buscar por nome, matrícula, produto ou ID..."
           className="pl-9 h-9 text-sm"
         />
       </div>
@@ -319,22 +353,33 @@ export default function Solicitacoes() {
                   {/* Main info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-muted-foreground font-mono shrink-0">#{s.id.slice(0, 8).toUpperCase()}</span>
                       <p className="text-sm font-semibold text-foreground truncate">{s.colaborador?.nome || '—'}</p>
-                      <span className="text-[10px] text-muted-foreground font-mono shrink-0">#{s.colaborador?.matricula}</span>
                     </div>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-[11px] text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Package size={11} />
                         {s.produto?.nome || '—'}
                       </span>
-                      {s.produto?.ca && (
-                        <span className="flex items-center gap-1">
-                          <Shield size={11} />
-                          CA: {s.produto.ca}
+                      <span className="flex items-center gap-1">
+                        <Building2 size={11} />
+                        {s.empresa_nome || '—'}
+                      </span>
+                      <span>Qtd: {s.quantidade}</span>
+                      {s.aprovador_nome && (
+                        <span className="hidden sm:flex items-center gap-1">
+                          <User size={11} />
+                          Aprovado por: {s.aprovador_nome}
                         </span>
                       )}
-                      <span>Qtd: {s.quantidade}</span>
-                      <span className="hidden sm:inline">• {s.motivo}</span>
+                      {!s.aprovador_nome && s.aprovado_por && (
+                        <span className="hidden sm:inline">Aprovado por: —</span>
+                      )}
+                      {s.aprovado_em && (
+                        <span className="hidden lg:inline">
+                          Aprovação: {formatDate(s.aprovado_em)}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -375,6 +420,7 @@ export default function Solicitacoes() {
                 <FileText size={16} className="text-primary" />
               </div>
               Detalhes da Solicitação
+              {selected && <span className="text-xs text-muted-foreground font-mono ml-1">#{selected.id.slice(0, 8).toUpperCase()}</span>}
             </DialogTitle>
           </DialogHeader>
           {selected && (
@@ -419,6 +465,10 @@ export default function Solicitacoes() {
                     <span className="text-muted-foreground text-[10px]">Matrícula</span>
                     <p className="font-medium mt-0.5">{selected.colaborador?.matricula}</p>
                   </div>
+                  <div>
+                    <span className="text-muted-foreground text-[10px]">Unidade</span>
+                    <p className="font-medium mt-0.5">{selected.empresa_nome || '—'}</p>
+                  </div>
                 </div>
               </div>
 
@@ -451,6 +501,37 @@ export default function Solicitacoes() {
                   </p>
                 )}
               </div>
+
+              {/* Aprovação block */}
+              {(selected.aprovado_por || selected.status === 'APROVADA' || selected.status === 'REPROVADA' || ['EM_SEPARACAO', 'BAIXADA_NO_ESTOQUE', 'ENTREGUE', 'CONFIRMADA'].includes(selected.status)) && (
+                <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                    <Shield size={11} /> Aprovação
+                  </p>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-muted-foreground text-[10px]">Status</span>
+                      <p className="font-medium mt-0.5">
+                        {selected.status === 'REPROVADA' ? 'Reprovada' : 'Aprovada'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground text-[10px]">Aprovado por</span>
+                      <p className="font-medium mt-0.5">{selected.aprovador_nome || '—'}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground text-[10px]">Data/Hora</span>
+                      <p className="font-medium mt-0.5">{selected.aprovado_em ? formatDate(selected.aprovado_em) : '—'}</p>
+                    </div>
+                    {selected.observacao_aprovacao && (
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground text-[10px]">Observação do aprovador</span>
+                        <p className="font-medium mt-0.5">{selected.observacao_aprovacao}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Selfie + Signature side by side */}
               {(selected.selfie_base64 || selected.assinatura_base64) && (
@@ -517,12 +598,7 @@ export default function Solicitacoes() {
               {selected.status === 'APROVADA' && (
                 <div className="border-t pt-4">
                   <p className="text-xs text-muted-foreground mb-3">Aprovada. Inicie a separação do item.</p>
-                  <Button className="w-full gap-1.5" onClick={async () => {
-                    setProcessing(true);
-                    await supabase.from('solicitacoes_epi').update({ status: 'EM_SEPARACAO' } as any).eq('id', selected.id);
-                    toast({ title: 'Status atualizado para Em Separação' });
-                    setDetailOpen(false); await load(); setProcessing(false);
-                  }} disabled={processing}>
+                  <Button className="w-full gap-1.5" onClick={() => handleStatusTransition(selected, 'EM_SEPARACAO', 'SOLICITACAO_EM_SEPARACAO', 'Status atualizado para Em Separação')} disabled={processing}>
                     {processing ? <Loader2 size={15} className="animate-spin" /> : <Package size={15} />}
                     Iniciar Separação
                   </Button>
@@ -533,12 +609,7 @@ export default function Solicitacoes() {
               {selected.status === 'EM_SEPARACAO' && (
                 <div className="border-t pt-4">
                   <p className="text-xs text-muted-foreground mb-3">Item em separação. Confirme a baixa no estoque.</p>
-                  <Button className="w-full gap-1.5" onClick={async () => {
-                    setProcessing(true);
-                    await supabase.from('solicitacoes_epi').update({ status: 'BAIXADA_NO_ESTOQUE' } as any).eq('id', selected.id);
-                    toast({ title: 'Baixa no estoque registrada' });
-                    setDetailOpen(false); await load(); setProcessing(false);
-                  }} disabled={processing}>
+                  <Button className="w-full gap-1.5" onClick={() => handleStatusTransition(selected, 'BAIXADA_NO_ESTOQUE', 'SOLICITACAO_BAIXADA_ESTOQUE', 'Baixa no estoque registrada')} disabled={processing}>
                     {processing ? <Loader2 size={15} className="animate-spin" /> : <Package size={15} />}
                     Confirmar Baixa no Estoque
                   </Button>
@@ -560,12 +631,7 @@ export default function Solicitacoes() {
               {selected.status === 'ENTREGUE' && (
                 <div className="border-t pt-4">
                   <p className="text-xs text-muted-foreground mb-3">Entrega realizada. Aguardando confirmação do colaborador.</p>
-                  <Button className="w-full gap-1.5" onClick={async () => {
-                    setProcessing(true);
-                    await supabase.from('solicitacoes_epi').update({ status: 'CONFIRMADA' } as any).eq('id', selected.id);
-                    toast({ title: '✅ Recebimento confirmado!' });
-                    setDetailOpen(false); await load(); setProcessing(false);
-                  }} disabled={processing}>
+                  <Button className="w-full gap-1.5" onClick={() => handleStatusTransition(selected, 'CONFIRMADA', 'SOLICITACAO_CONFIRMADA', '✅ Recebimento confirmado!')} disabled={processing}>
                     {processing ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle size={15} />}
                     Confirmar Recebimento
                   </Button>
