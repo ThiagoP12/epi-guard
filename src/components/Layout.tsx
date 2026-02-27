@@ -38,6 +38,7 @@ const menuItems = [
   
   { label: 'Controle de EPC', icon: Shield, path: '/controle-epc', phase: 2 },
   { label: 'Relatórios', icon: BarChart3, path: '/relatorios', phase: 2 },
+  { label: 'Unidades', icon: Building2, path: '/revendas', phase: 1 },
   { label: 'Usuários', icon: UserCog, path: '/usuarios', phase: 1 },
   { label: 'Configurações', icon: Settings, path: '/configuracoes', phase: 1 },
 ];

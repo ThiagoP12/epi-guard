@@ -20,6 +20,7 @@ import Usuarios from "./pages/Usuarios";
 import AdminTenants from "./pages/AdminTenants";
 import PortalColaborador from "./pages/PortalColaborador";
 import LoginColaborador from "./pages/LoginColaborador";
+import Revendas from "./pages/Revendas";
 import NotFound from "./pages/NotFound";
 import { Shield, Clock, Building2, LogOut } from "lucide-react";
 import { Button } from "./components/ui/button";
@@ -167,7 +168,7 @@ function ProtectedRoutes() {
           <Route path="/colaboradores" element={<Colaboradores />} />
           <Route path="/solicitacoes" element={<Solicitacoes />} />
           <Route path="/historico-entregas" element={<HistoricoEntregas />} />
-          
+          <Route path="/revendas" element={<Revendas />} />
           <Route path="/controle-epc" element={<ControleEPC />} />
           <Route path="/relatorios" element={<Relatorios />} />
           <Route path="/usuarios" element={<Usuarios />} />
