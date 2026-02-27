@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.create-colaborador-account]
 verify_jwt = false
+
+[functions.notify-colaborador]
+verify_jwt = false

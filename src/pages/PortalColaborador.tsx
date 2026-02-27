@@ -50,16 +50,25 @@ interface Entrega {
   id: string; data_hora: string; motivo: string; observacao: string | null;
   itens: EntregaItem[];
 }
+interface Notificacao {
+  id: string;
+  titulo: string;
+  mensagem: string;
+  lida: boolean;
+  solicitacao_id: string | null;
+  created_at: string;
+}
 
 export default function PortalColaborador() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
-  const [activeSection, setActiveSection] = useState<'solicitar' | 'historico' | 'recebimentos' | 'perfil'>('solicitar');
+  const [activeSection, setActiveSection] = useState<'solicitar' | 'historico' | 'recebimentos' | 'notificacoes' | 'perfil'>('solicitar');
   const { theme, toggleTheme } = useTheme();
   const [colaborador, setColaborador] = useState<Colaborador | null>(null);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [solicitacoes, setSolicitacoes] = useState<Solicitacao[]>([]);
   const [entregas, setEntregas] = useState<Entrega[]>([]);
+  const [notificacoes, setNotificacoes] = useState<Notificacao[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Form state
@@ -107,6 +116,7 @@ export default function PortalColaborador() {
 
       await loadSolicitacoes(colabData.id);
       await loadEntregas(colabData.id);
+      await loadNotificacoes(colabData.id);
 
       // Load avatar
       const { data: profile } = await supabase
@@ -120,26 +130,18 @@ export default function PortalColaborador() {
     };
     load();
 
-    // Realtime: auto-refresh when solicitacoes or entregas change
+    // Realtime
     const channel = supabase
-      .channel('portal-solicitacoes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'solicitacoes_epi' },
-        () => {
-          if (colabId) {
-            loadSolicitacoes(colabId);
-            loadEntregas(colabId);
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'entregas_epi' },
-        () => {
-          if (colabId) loadEntregas(colabId);
-        }
-      )
+      .channel('portal-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitacoes_epi' }, () => {
+        if (colabId) { loadSolicitacoes(colabId); loadEntregas(colabId); }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'entregas_epi' }, () => {
+        if (colabId) loadEntregas(colabId);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notificacoes' }, () => {
+        if (colabId) loadNotificacoes(colabId);
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -180,19 +182,40 @@ export default function PortalColaborador() {
       const prodIds = [...new Set(data.map(s => s.produto_id))];
       let prodsInfo: { id: string; nome: string; ca: string | null }[] = [];
       if (prodIds.length > 0) {
-        const { data: prods } = await supabase
-          .from('produtos')
-          .select('id, nome, ca')
-          .in('id', prodIds);
+        const { data: prods } = await supabase.from('produtos').select('id, nome, ca').in('id', prodIds);
         prodsInfo = prods || [];
       }
-
       const enriched = data.map(s => ({
         ...s,
         produto: prodsInfo.find(p => p.id === s.produto_id) || undefined,
       }));
       setSolicitacoes(enriched);
     }
+  };
+
+  const loadNotificacoes = async (colabId: string) => {
+    const { data } = await supabase
+      .from('notificacoes')
+      .select('*')
+      .eq('colaborador_id', colabId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (data) setNotificacoes(data as Notificacao[]);
+  };
+
+  const markAsRead = async (id: string) => {
+    await supabase.from('notificacoes').update({ lida: true } as any).eq('id', id);
+    setNotificacoes(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n));
+  };
+
+  const markAllAsRead = async () => {
+    if (!colaborador) return;
+    const unread = notificacoes.filter(n => !n.lida);
+    if (unread.length === 0) return;
+    for (const n of unread) {
+      await supabase.from('notificacoes').update({ lida: true } as any).eq('id', n.id);
+    }
+    setNotificacoes(prev => prev.map(n => ({ ...n, lida: true })));
   };
 
   const captureGeolocation = (): Promise<{ lat: number; lng: number; accuracy: number } | null> => {
@@ -214,7 +237,6 @@ export default function PortalColaborador() {
 
     setSubmitting(true);
     try {
-      // Capture IP
       let ipOrigem = 'browser';
       try {
         const ipRes = await fetch('https://api.ipify.org?format=json');
@@ -222,12 +244,9 @@ export default function PortalColaborador() {
         ipOrigem = ipData.ip || 'browser';
       } catch { /* fallback */ }
 
-      // Capture geolocation
       const geo = await captureGeolocation();
-
       const timestamp = new Date().toISOString();
 
-      // Build hash with all audit data
       const hashInput = [
         assinatura, colaborador.id, colaborador.cpf || '', colaborador.email || '',
         produtoId, quantidade, motivo, timestamp, ipOrigem, navigator.userAgent,
@@ -262,13 +281,8 @@ export default function PortalColaborador() {
       if (error) throw error;
 
       toast({ title: '✅ Solicitação enviada!', description: 'Aguarde a aprovação do gestor.' });
-      setProdutoId('');
-      setQuantidade(1);
-      setMotivo('Solicitação');
-      setObservacao('');
-      setAssinatura(null);
-      setSelfie(null);
-      setDeclaracao(false);
+      setProdutoId(''); setQuantidade(1); setMotivo('Solicitação'); setObservacao('');
+      setAssinatura(null); setSelfie(null); setDeclaracao(false);
       await loadSolicitacoes(colaborador.id);
       setActiveSection('historico');
     } catch (err: any) {
@@ -279,6 +293,7 @@ export default function PortalColaborador() {
 
   const selectedProduct = produtos.find(p => p.id === produtoId);
   const pendingCount = solicitacoes.filter(s => s.status === 'ENVIADA').length;
+  const unreadCount = notificacoes.filter(n => !n.lida).length;
 
   if (loading) {
     return (
@@ -315,22 +330,15 @@ export default function PortalColaborador() {
     ENVIADA: { icon: Clock, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800', label: 'Enviada' },
     APROVADA: { icon: CheckCircle, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800', label: 'Aprovada' },
     REPROVADA: { icon: XCircle, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800', label: 'Reprovada' },
-    EM_SEPARACAO: { icon: Package, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800', label: 'Em Separação' },
-    BAIXADA_NO_ESTOQUE: { icon: Package, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800', label: 'Baixada' },
+    SEPARADO: { icon: Package, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800', label: 'Separado' },
     ENTREGUE: { icon: Package, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800', label: 'Entregue' },
     CONFIRMADA: { icon: CheckCircle, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800', label: 'Confirmada' },
   };
 
-  // Notifications: count recent status changes (approved/rejected/delivered in last 24h)
-  const recentNotifications = solicitacoes.filter(s => {
-    if (s.status === 'ENVIADA' || s.status === 'CRIADA') return false;
-    const created = new Date(s.aprovado_em || s.created_at);
-    return differenceInDays(new Date(), created) <= 7;
-  });
-
   const navItems = [
     { key: 'solicitar' as const, label: 'Nova Solicitação', shortLabel: 'Solicitar', icon: ClipboardCheck, badge: 0 },
     { key: 'historico' as const, label: 'Minhas Solicitações', shortLabel: 'Histórico', icon: History, badge: pendingCount },
+    { key: 'notificacoes' as const, label: 'Notificações', shortLabel: 'Avisos', icon: Bell, badge: unreadCount },
     { key: 'recebimentos' as const, label: 'Recebimentos', shortLabel: 'Recebidos', icon: Package, badge: entregas.length + solicitacoes.filter(s => ['ENTREGUE', 'CONFIRMADA'].includes(s.status)).length },
     { key: 'perfil' as const, label: 'Meu Perfil', shortLabel: 'Perfil', icon: UserCircle, badge: 0 },
   ];
@@ -339,7 +347,7 @@ export default function PortalColaborador() {
 
   return (
     <div className="min-h-screen bg-muted/30 flex flex-col pb-16 sm:pb-0">
-      {/* Top Bar - gradient */}
+      {/* Top Bar */}
       <header className="bg-gradient-to-r from-primary to-primary/80 sticky top-0 z-20 shadow-md">
         <div className="max-w-4xl mx-auto px-3 sm:px-6">
           <div className="flex items-center justify-between h-11 sm:h-12">
@@ -350,18 +358,18 @@ export default function PortalColaborador() {
               <span className="text-xs sm:text-sm font-bold text-primary-foreground">Portal EPI</span>
             </div>
             <div className="flex items-center gap-1">
-              {/* Notifications bell */}
               <button
-                onClick={() => setActiveSection('historico')}
+                onClick={() => setActiveSection('notificacoes')}
                 className="relative p-2 rounded-lg text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors"
                 title="Notificações"
               >
                 <Bell size={16} />
-                {recentNotifications.length > 0 && (
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-400 rounded-full animate-pulse" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-0.5 right-0.5 min-w-[14px] h-[14px] bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center px-0.5">
+                    {unreadCount}
+                  </span>
                 )}
               </button>
-              {/* Dark mode toggle */}
               <button
                 onClick={toggleTheme}
                 className="p-2 rounded-lg text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors"
@@ -407,9 +415,7 @@ export default function PortalColaborador() {
                   try {
                     const ext = file.name.split('.').pop();
                     const path = `${user.id}/avatar.${ext}`;
-                    const { error: uploadErr } = await supabase.storage
-                      .from('avatars')
-                      .upload(path, file, { upsert: true });
+                    const { error: uploadErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
                     if (uploadErr) throw uploadErr;
                     const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
                     const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
@@ -449,7 +455,7 @@ export default function PortalColaborador() {
       </div>
 
       <main className="max-w-4xl mx-auto px-3 sm:px-6 py-3 sm:py-4 flex-1 w-full">
-        {/* Tab Navigation - desktop only */}
+        {/* Tab Navigation - desktop */}
         <div className="hidden sm:flex bg-card rounded-xl border shadow-sm mb-5 p-1 gap-1">
           {navItems.map(item => (
             <button
@@ -483,7 +489,6 @@ export default function PortalColaborador() {
           {/* SOLICITAR */}
           {activeSection === 'solicitar' && (
             <div className="space-y-5 animate-in fade-in-0 duration-200">
-              {/* Form Card */}
               <section className="bg-card rounded-xl border shadow-sm">
                 <div className="px-5 py-4 border-b bg-primary/5">
                   <h3 className="text-sm font-semibold text-foreground">Dados da Solicitação</h3>
@@ -505,9 +510,7 @@ export default function PortalColaborador() {
                     ) : (
                       <>
                         <Select value={produtoId} onValueChange={setProdutoId}>
-                          <SelectTrigger className="mt-1.5 h-10">
-                            <SelectValue placeholder="Selecionar equipamento..." />
-                          </SelectTrigger>
+                          <SelectTrigger className="mt-1.5 h-10"><SelectValue placeholder="Selecionar equipamento..." /></SelectTrigger>
                           <SelectContent>
                             {produtos.map(p => (
                               <SelectItem key={p.id} value={p.id}>
@@ -537,12 +540,7 @@ export default function PortalColaborador() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="text-xs font-medium">Quantidade *</Label>
-                      <Input
-                        type="number" min={1} max={selectedProduct?.saldo || 999}
-                        value={quantidade}
-                        onChange={(e) => setQuantidade(Number(e.target.value))}
-                        className="mt-1.5 h-10"
-                      />
+                      <Input type="number" min={1} max={selectedProduct?.saldo || 999} value={quantidade} onChange={(e) => setQuantidade(Number(e.target.value))} className="mt-1.5 h-10" />
                     </div>
                     <div>
                       <Label className="text-xs font-medium">Motivo</Label>
@@ -559,68 +557,35 @@ export default function PortalColaborador() {
 
                   <div>
                     <Label className="text-xs font-medium">Observação</Label>
-                    <Textarea
-                      value={observacao}
-                      onChange={(e) => setObservacao(e.target.value)}
-                      placeholder="Descreva o motivo detalhado (opcional)"
-                      className="mt-1.5 resize-none"
-                      rows={2}
-                    />
+                    <Textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Descreva o motivo detalhado (opcional)" className="mt-1.5 resize-none" rows={2} />
                   </div>
                 </div>
               </section>
 
-              {/* Selfie */}
               <section className="bg-card rounded-xl border shadow-sm">
                 <div className="px-5 py-4 border-b bg-primary/5">
-                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                    <Camera size={14} className="text-primary" />
-                    Selfie do Colaborador
-                  </h3>
+                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2"><Camera size={14} className="text-primary" />Selfie do Colaborador</h3>
                 </div>
-                <div className="p-5">
-                  <SelfieCapture onCaptureChange={setSelfie} />
-                </div>
+                <div className="p-5"><SelfieCapture onCaptureChange={setSelfie} /></div>
               </section>
 
-              {/* Signature */}
               <section className="bg-card rounded-xl border shadow-sm">
                 <div className="px-5 py-4 border-b bg-primary/5">
-                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                    <PenTool size={14} className="text-primary" />
-                    Assinatura Digital
-                  </h3>
+                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2"><PenTool size={14} className="text-primary" />Assinatura Digital</h3>
                 </div>
-                <div className="p-5">
-                  <SignatureCanvas onSignatureChange={setAssinatura} />
-                </div>
+                <div className="p-5"><SignatureCanvas onSignatureChange={setAssinatura} /></div>
               </section>
 
-              {/* Declaration + Submit */}
               <section className="bg-card rounded-xl border shadow-sm p-5 space-y-4">
                 <div className="flex items-start gap-3 p-3.5 rounded-lg bg-primary/5 border border-primary/10">
-                  <Checkbox
-                    id="declaracao"
-                    checked={declaracao}
-                    onCheckedChange={(v) => setDeclaracao(v === true)}
-                    className="mt-0.5"
-                  />
+                  <Checkbox id="declaracao" checked={declaracao} onCheckedChange={(v) => setDeclaracao(v === true)} className="mt-0.5" />
                   <label htmlFor="declaracao" className="text-[11px] text-muted-foreground leading-relaxed cursor-pointer">
                     <strong className="text-foreground">DECLARO</strong> que as informações prestadas são verdadeiras e que necessito do EPI solicitado para execução segura das minhas atividades.
                     Estou ciente de que a assinatura digital aqui aposta possui validade jurídica conforme a MP 2.200-2/2001 e que este documento é protegido por hash criptográfico SHA-256.
                   </label>
                 </div>
-
-                <Button
-                  className="w-full h-11 text-sm font-semibold gap-2"
-                  onClick={handleSubmit}
-                  disabled={submitting || !produtoId || !assinatura || !selfie || !declaracao}
-                >
-                  {submitting ? (
-                    <><Loader2 size={16} className="animate-spin" /> Enviando...</>
-                  ) : (
-                    <><Send size={16} /> Enviar Solicitação</>
-                  )}
+                <Button className="w-full h-11 text-sm font-semibold gap-2" onClick={handleSubmit} disabled={submitting || !produtoId || !assinatura || !selfie || !declaracao}>
+                  {submitting ? <><Loader2 size={16} className="animate-spin" /> Enviando...</> : <><Send size={16} /> Enviar Solicitação</>}
                 </Button>
               </section>
             </div>
@@ -636,47 +601,48 @@ export default function PortalColaborador() {
                   const cfg = statusConfig[s.status] || statusConfig.ENVIADA;
                   const StatusIcon = cfg.icon;
                   return (
-                    <div key={s.id} className="bg-card rounded-xl border shadow-sm p-4 transition-colors hover:shadow-md">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-foreground truncate">{s.produto?.nome || 'Produto'}</p>
-                          <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
-                            {s.produto?.ca && <span className="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded">CA: {s.produto.ca}</span>}
-                            <span>Qtde: {s.quantidade}</span>
-                            <span className="text-border">|</span>
-                            <span>{s.motivo}</span>
+                    <div key={s.id} className="bg-card rounded-xl border shadow-sm overflow-hidden transition-colors hover:shadow-md">
+                      {/* Timeline */}
+                      <div className="px-4 pt-4 pb-2">
+                        <PortalTimeline status={s.status} />
+                      </div>
+                      <div className="px-4 pb-4">
+                        <div className="flex items-start justify-between gap-3 mt-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-foreground truncate">{s.produto?.nome || 'Produto'}</p>
+                            <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
+                              {s.produto?.ca && <span className="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded">CA: {s.produto.ca}</span>}
+                              <span>Qtde: {s.quantidade}</span>
+                              <span className="text-border">|</span>
+                              <span>{s.motivo}</span>
+                            </div>
+                          </div>
+                          <span className={cn(
+                            'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium shrink-0 border',
+                            cfg.bg, cfg.color
+                          )}>
+                            <StatusIcon size={12} />
+                            {cfg.label}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between mt-3 pt-2.5 border-t">
+                          <span className="text-[11px] text-muted-foreground">
+                            {format(new Date(s.created_at), 'dd/MM/yyyy HH:mm')}
+                          </span>
+                          <div className="flex gap-1.5">
+                            {['APROVADA', 'SEPARADO', 'ENTREGUE', 'CONFIRMADA'].includes(s.status) && (
+                              <Button variant="outline" size="sm" className="h-7 text-[11px] gap-1 px-2" onClick={() => { setComprovanteSolicitacao(s); setComprovanteOpen(true); }}>
+                                <Eye size={12} /> Comprovante
+                              </Button>
+                            )}
                           </div>
                         </div>
-                        <span className={cn(
-                          'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium shrink-0 border',
-                          cfg.bg, cfg.color
-                        )}>
-                          <StatusIcon size={12} />
-                          {cfg.label}
-                        </span>
+                        {s.motivo_rejeicao && (
+                          <div className="mt-2 p-2 rounded bg-destructive/5 border border-destructive/10">
+                            <p className="text-[11px] text-destructive"><strong>Motivo:</strong> {s.motivo_rejeicao}</p>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center justify-between mt-3 pt-2.5 border-t">
-                        <span className="text-[11px] text-muted-foreground">
-                          {format(new Date(s.created_at), 'dd/MM/yyyy HH:mm')}
-                        </span>
-                        <div className="flex gap-1.5">
-                          {['APROVADA', 'EM_SEPARACAO', 'BAIXADA_NO_ESTOQUE', 'ENTREGUE', 'CONFIRMADA'].includes(s.status) && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-[11px] gap-1 px-2"
-                              onClick={() => { setComprovanteSolicitacao(s); setComprovanteOpen(true); }}
-                            >
-                              <Eye size={12} /> Comprovante
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                      {s.motivo_rejeicao && (
-                        <div className="mt-2 p-2 rounded bg-destructive/5 border border-destructive/10">
-                          <p className="text-[11px] text-destructive"><strong>Motivo:</strong> {s.motivo_rejeicao}</p>
-                        </div>
-                      )}
                     </div>
                   );
                 })
@@ -684,20 +650,66 @@ export default function PortalColaborador() {
             </div>
           )}
 
+          {/* NOTIFICAÇÕES */}
+          {activeSection === 'notificacoes' && (
+            <div className="space-y-3 animate-in fade-in-0 duration-200">
+              {unreadCount > 0 && (
+                <div className="flex justify-end">
+                  <Button variant="ghost" size="sm" className="text-xs gap-1 h-7" onClick={markAllAsRead}>
+                    <CheckCircle size={12} /> Marcar todas como lidas
+                  </Button>
+                </div>
+              )}
+              {notificacoes.length === 0 ? (
+                <EmptyState icon={Bell} message="Nenhuma notificação." sub="Você será avisado quando houver atualizações nas suas solicitações." />
+              ) : (
+                notificacoes.map(n => (
+                  <div
+                    key={n.id}
+                    className={cn(
+                      "bg-card rounded-xl border shadow-sm p-4 transition-colors cursor-pointer",
+                      !n.lida && "border-primary/30 bg-primary/[0.02]"
+                    )}
+                    onClick={() => {
+                      if (!n.lida) markAsRead(n.id);
+                      if (n.solicitacao_id) setActiveSection('historico');
+                    }}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={cn(
+                        "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
+                        !n.lida ? "bg-primary/10" : "bg-muted"
+                      )}>
+                        <Bell size={14} className={!n.lida ? "text-primary" : "text-muted-foreground"} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className={cn("text-sm font-semibold truncate", !n.lida ? "text-foreground" : "text-muted-foreground")}>{n.titulo}</p>
+                          {!n.lida && <span className="w-2 h-2 rounded-full bg-primary shrink-0" />}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{n.mensagem}</p>
+                        <p className="text-[10px] text-muted-foreground/60 mt-1.5">
+                          {format(new Date(n.created_at), 'dd/MM/yyyy HH:mm')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
           {/* RECEBIMENTOS */}
           {activeSection === 'recebimentos' && (
             <div className="space-y-3 animate-in fade-in-0 duration-200">
-              {/* Summary - combine entregas + solicitações entregues */}
               {(() => {
                 const totals: { nome: string; ca: string | null; total: number; data_validade: string | null }[] = [];
-                // From entregas_epi
                 entregas.forEach(e => e.itens.forEach(item => {
                   const existing = totals.find(t => t.nome === item.nome_snapshot);
                   const prod = produtos.find(p => p.nome === item.nome_snapshot);
                   if (existing) existing.total += item.quantidade;
                   else totals.push({ nome: item.nome_snapshot, ca: item.ca_snapshot, total: item.quantidade, data_validade: prod?.data_validade || null });
                 }));
-                // From solicitações entregues
                 const solEntregues = solicitacoes.filter(s => ['ENTREGUE', 'CONFIRMADA'].includes(s.status));
                 solEntregues.forEach(s => {
                   const nome = s.produto?.nome || 'Produto';
@@ -708,18 +720,14 @@ export default function PortalColaborador() {
                   else totals.push({ nome, ca, total: s.quantidade, data_validade: prod?.data_validade || null });
                 });
                 if (totals.length === 0) return null;
-
-                // Check for validade alerts
                 const now = new Date();
                 const validadeAlerts = totals.filter(item => {
                   if (!item.data_validade) return false;
-                  const days = differenceInDays(parseISO(item.data_validade), now);
-                  return days <= 60;
+                  return differenceInDays(parseISO(item.data_validade), now) <= 60;
                 });
 
                 return (
                   <>
-                    {/* Validade alerts */}
                     {validadeAlerts.length > 0 && (
                       <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-4 mb-2">
                         <div className="flex items-center gap-2 mb-2">
@@ -735,10 +743,8 @@ export default function PortalColaborador() {
                                 <span className="font-medium text-foreground">{item.nome}</span>
                                 <span className={cn(
                                   'font-bold px-2 py-0.5 rounded-full text-[10px]',
-                                  expired
-                                    ? 'bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-400'
-                                    : days <= 30
-                                      ? 'bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400'
+                                  expired ? 'bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-400'
+                                    : days <= 30 ? 'bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400'
                                       : 'bg-yellow-100 dark:bg-yellow-950/50 text-yellow-700 dark:text-yellow-400'
                                 )}>
                                   {expired ? `Vencido há ${Math.abs(days)}d` : `Vence em ${days}d`}
@@ -753,8 +759,7 @@ export default function PortalColaborador() {
                     <div className="bg-card rounded-xl border shadow-sm overflow-hidden mb-2">
                       <div className="px-5 py-3 border-b bg-primary/5">
                         <h3 className="text-xs font-semibold text-foreground flex items-center gap-2">
-                          <ClipboardCheck size={13} className="text-primary" />
-                          EPIs em Uso
+                          <ClipboardCheck size={13} className="text-primary" /> EPIs em Uso
                         </h3>
                       </div>
                       <div className="p-4 space-y-1.5">
@@ -767,11 +772,9 @@ export default function PortalColaborador() {
                                 <div className="flex items-center gap-2">
                                   {item.ca && <span className="text-[10px] text-muted-foreground font-mono">CA: {item.ca}</span>}
                                   {item.data_validade && (
-                                    <span className={cn(
-                                      'text-[10px] font-mono',
+                                    <span className={cn('text-[10px] font-mono',
                                       days !== null && days < 0 ? 'text-red-600 dark:text-red-400 font-bold' :
-                                      days !== null && days <= 30 ? 'text-amber-600 dark:text-amber-400' :
-                                      'text-muted-foreground'
+                                      days !== null && days <= 30 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'
                                     )}>
                                       Val: {format(parseISO(item.data_validade), 'dd/MM/yy')}
                                     </span>
@@ -813,11 +816,6 @@ export default function PortalColaborador() {
                           <span className="font-bold text-primary">{s.quantidade}×</span>
                         </div>
                       </div>
-                      {s.observacao && (
-                        <div className="px-5 pb-3">
-                          <p className="text-[11px] text-muted-foreground italic">Obs: {s.observacao}</p>
-                        </div>
-                      )}
                     </div>
                   ));
                 }
@@ -865,13 +863,9 @@ export default function PortalColaborador() {
           {/* PERFIL */}
           {activeSection === 'perfil' && (
             <div className="space-y-4 animate-in fade-in-0 duration-200">
-              {/* Info pessoal */}
               <section className="bg-card rounded-xl border shadow-sm overflow-hidden">
                 <div className="px-5 py-3 border-b bg-primary/5">
-                  <h3 className="text-xs font-semibold text-foreground flex items-center gap-2">
-                    <User size={13} className="text-primary" />
-                    Dados Pessoais
-                  </h3>
+                  <h3 className="text-xs font-semibold text-foreground flex items-center gap-2"><User size={13} className="text-primary" />Dados Pessoais</h3>
                 </div>
                 <div className="p-5 space-y-3">
                   <ProfileRow icon={User} label="Nome completo" value={colaborador.nome} />
@@ -881,13 +875,9 @@ export default function PortalColaborador() {
                 </div>
               </section>
 
-              {/* Info profissional */}
               <section className="bg-card rounded-xl border shadow-sm overflow-hidden">
                 <div className="px-5 py-3 border-b bg-primary/5">
-                  <h3 className="text-xs font-semibold text-foreground flex items-center gap-2">
-                    <Briefcase size={13} className="text-primary" />
-                    Dados Profissionais
-                  </h3>
+                  <h3 className="text-xs font-semibold text-foreground flex items-center gap-2"><Briefcase size={13} className="text-primary" />Dados Profissionais</h3>
                 </div>
                 <div className="p-5 space-y-3">
                   <ProfileRow icon={Building2} label="Empresa" value={colaborador.empresa?.nome || '—'} />
@@ -898,13 +888,9 @@ export default function PortalColaborador() {
                 </div>
               </section>
 
-              {/* Tamanhos */}
               <section className="bg-card rounded-xl border shadow-sm overflow-hidden">
                 <div className="px-5 py-3 border-b bg-primary/5">
-                  <h3 className="text-xs font-semibold text-foreground flex items-center gap-2">
-                    <Ruler size={13} className="text-primary" />
-                    Tamanhos
-                  </h3>
+                  <h3 className="text-xs font-semibold text-foreground flex items-center gap-2"><Ruler size={13} className="text-primary" />Tamanhos</h3>
                 </div>
                 <div className="p-5 grid grid-cols-3 gap-3">
                   <SizeCard icon={User} label="Uniforme" value={colaborador.tamanho_uniforme} />
@@ -913,34 +899,6 @@ export default function PortalColaborador() {
                 </div>
               </section>
 
-              {/* Notificações recentes */}
-              {recentNotifications.length > 0 && (
-                <section className="bg-card rounded-xl border shadow-sm overflow-hidden">
-                  <div className="px-5 py-3 border-b bg-primary/5">
-                    <h3 className="text-xs font-semibold text-foreground flex items-center gap-2">
-                      <Bell size={13} className="text-primary" />
-                      Atualizações Recentes
-                    </h3>
-                  </div>
-                  <div className="p-4 space-y-2">
-                    {recentNotifications.slice(0, 5).map(s => {
-                      const cfg = statusConfig[s.status as keyof typeof statusConfig] || statusConfig.pendente;
-                      const StatusIcon = cfg.icon;
-                      return (
-                        <div key={s.id} className={cn('flex items-center gap-3 px-3 py-2.5 rounded-lg border text-xs', cfg.bg)}>
-                          <StatusIcon size={14} className={cfg.color} />
-                          <div className="flex-1 min-w-0">
-                            <span className="font-medium text-foreground truncate block">{s.produto?.nome || 'Produto'}</span>
-                            <span className="text-[10px] text-muted-foreground">{cfg.label} • {format(new Date(s.aprovado_em || s.created_at), 'dd/MM HH:mm')}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-              )}
-
-              {/* Tema */}
               <section className="bg-card rounded-xl border shadow-sm p-5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -963,15 +921,9 @@ export default function PortalColaborador() {
       {/* Footer - desktop */}
       <footer className="hidden sm:block border-t bg-card py-4 mt-auto">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 flex items-center justify-between">
-          <p className="text-[11px] text-muted-foreground">
-            Portal EPI • v1.0.0
-          </p>
-          <button
-            onClick={signOut}
-            className="flex items-center gap-1.5 text-muted-foreground hover:text-destructive text-xs transition-colors px-3 py-2 rounded-lg hover:bg-destructive/5 border border-transparent hover:border-destructive/20"
-          >
-            <LogOut size={14} />
-            <span>Sair da conta</span>
+          <p className="text-[11px] text-muted-foreground">Portal EPI • v1.0.0</p>
+          <button onClick={signOut} className="flex items-center gap-1.5 text-muted-foreground hover:text-destructive text-xs transition-colors px-3 py-2 rounded-lg hover:bg-destructive/5 border border-transparent hover:border-destructive/20">
+            <LogOut size={14} /><span>Sair da conta</span>
           </button>
         </div>
       </footer>
@@ -985,9 +937,7 @@ export default function PortalColaborador() {
               onClick={() => setActiveSection(item.key)}
               className={cn(
                 'flex-1 flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-colors relative',
-                activeSection === item.key
-                  ? 'text-primary'
-                  : 'text-muted-foreground'
+                activeSection === item.key ? 'text-primary' : 'text-muted-foreground'
               )}
             >
               {activeSection === item.key && (
@@ -1044,6 +994,76 @@ export default function PortalColaborador() {
   );
 }
 
+/* ── Timeline Component ── */
+const TIMELINE_STEPS = [
+  { key: 'ENVIADA', label: 'Enviada' },
+  { key: 'APROVADA', label: 'Aprovada' },
+  { key: 'SEPARADO', label: 'Separado' },
+  { key: 'ENTREGUE', label: 'Entregue' },
+  { key: 'CONFIRMADA', label: 'Confirmada' },
+];
+
+function PortalTimeline({ status }: { status: string }) {
+  if (status === 'REPROVADA') {
+    return (
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          <div className="w-4 h-4 rounded-full bg-emerald-100 dark:bg-emerald-950/50 flex items-center justify-center">
+            <CheckCircle size={10} className="text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <span className="text-[10px] font-medium text-muted-foreground">Enviada</span>
+        </div>
+        <div className="flex-1 h-px bg-border" />
+        <div className="flex items-center gap-1.5">
+          <div className="w-4 h-4 rounded-full bg-red-100 dark:bg-red-950/50 flex items-center justify-center">
+            <XCircle size={10} className="text-red-600 dark:text-red-400" />
+          </div>
+          <span className="text-[10px] font-medium text-red-600 dark:text-red-400">Reprovada</span>
+        </div>
+      </div>
+    );
+  }
+
+  const currentIndex = TIMELINE_STEPS.findIndex(s => s.key === status);
+
+  return (
+    <div className="flex items-center gap-0.5">
+      {TIMELINE_STEPS.map((step, i) => {
+        const isCompleted = i <= currentIndex;
+        const isCurrent = i === currentIndex;
+        return (
+          <div key={step.key} className="flex items-center gap-0.5 flex-1">
+            <div className="flex flex-col items-center gap-0.5 min-w-0 flex-1">
+              <div className={cn(
+                "w-4 h-4 rounded-full flex items-center justify-center shrink-0",
+                isCompleted ? "bg-emerald-100 dark:bg-emerald-950/50" : "bg-muted"
+              )}>
+                {isCompleted ? (
+                  <CheckCircle size={10} className="text-emerald-600 dark:text-emerald-400" />
+                ) : (
+                  <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />
+                )}
+              </div>
+              <span className={cn(
+                "text-[8px] font-medium text-center leading-tight",
+                isCurrent ? "text-foreground font-bold" : isCompleted ? "text-muted-foreground" : "text-muted-foreground/50"
+              )}>
+                {step.label}
+              </span>
+            </div>
+            {i < TIMELINE_STEPS.length - 1 && (
+              <div className={cn(
+                "h-px flex-1 min-w-1 mt-[-10px]",
+                i < currentIndex ? "bg-emerald-500" : "bg-border"
+              )} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ── Sub-components ── */
 
 function InfoPill({ icon: Icon, label, value, mono }: { icon: any; label: string; value: string; mono?: boolean }) {
@@ -1053,16 +1073,6 @@ function InfoPill({ icon: Icon, label, value, mono }: { icon: any; label: string
       <span className="font-medium">{label}:</span>
       <span className={cn('text-foreground font-semibold', mono && 'font-mono text-[10px]')}>{value}</span>
     </span>
-  );
-}
-
-function StatCard({ label, value, detail, accent }: { label: string; value: number; detail: string; accent?: boolean }) {
-  return (
-    <div className="bg-card rounded-xl border shadow-sm p-2.5 sm:p-4 text-center">
-      <p className={cn('text-xl sm:text-2xl font-bold', accent ? 'text-primary' : 'text-foreground')}>{value}</p>
-      <p className="text-[10px] sm:text-xs font-medium text-foreground mt-0.5">{label}</p>
-      <p className="text-[9px] sm:text-[10px] text-muted-foreground mt-0.5 sm:mt-1 truncate">{detail}</p>
-    </div>
   );
 }
 
@@ -1076,12 +1086,6 @@ function EmptyState({ icon: Icon, message, sub }: { icon: any; message: string; 
       {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
     </div>
   );
-}
-
-function formatCpf(cpf: string): string {
-  const digits = cpf.replace(/\D/g, '');
-  if (digits.length !== 11) return cpf;
-  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
 }
 
 function ProfileRow({ icon: Icon, label, value, mono }: { icon: any; label: string; value: string; mono?: boolean }) {

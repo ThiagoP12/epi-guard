@@ -31,7 +31,7 @@ interface Solicitacao {
   aprovado_por: string | null;
   aprovado_em: string | null;
   observacao_aprovacao: string | null;
-  colaborador?: { nome: string; matricula: string; cpf: string | null; setor: string; funcao: string };
+  colaborador?: { nome: string; matricula: string; cpf: string | null; setor: string; funcao: string; email?: string | null };
   produto?: { nome: string; ca: string | null };
   empresa_nome?: string;
   aprovador_nome?: string;
@@ -66,6 +66,23 @@ export default function Solicitacoes() {
     }
   };
 
+  const sendNotificationEmail = async (colaborador: Solicitacao['colaborador'], solicitacaoId: string, assunto: string, corpo: string) => {
+    if (!colaborador?.email) return;
+    try {
+      await supabase.functions.invoke('notify-colaborador', {
+        body: {
+          colaborador_email: colaborador.email,
+          colaborador_nome: colaborador.nome,
+          assunto,
+          corpo,
+          solicitacao_id: solicitacaoId,
+        },
+      });
+    } catch (e) {
+      console.error('Email notification error:', e);
+    }
+  };
+
   const load = async () => {
     setLoading(true);
     let query = supabase
@@ -83,7 +100,7 @@ export default function Solicitacoes() {
       const aprovadorIds = [...new Set(data.map(s => s.aprovado_por).filter(Boolean))] as string[];
 
       const [colabRes, prodRes, empresaRes, aprovadorRes] = await Promise.all([
-        colabIds.length > 0 ? supabase.from('colaboradores').select('id, nome, matricula, cpf, setor, funcao').in('id', colabIds) : { data: [] },
+        colabIds.length > 0 ? supabase.from('colaboradores').select('id, nome, matricula, cpf, setor, funcao, email').in('id', colabIds) : { data: [] },
         prodIds.length > 0 ? supabase.from('produtos').select('id, nome, ca').in('id', prodIds) : { data: [] },
         empresaIds.length > 0 ? supabase.from('empresas').select('id, nome').in('id', empresaIds) : { data: [] },
         aprovadorIds.length > 0 ? supabase.from('profiles').select('id, nome').in('id', aprovadorIds) : { data: [] },
@@ -114,6 +131,7 @@ export default function Solicitacoes() {
     setSolicitacoes(filtered);
   }, [allSolicitacoes, statusFilter]);
 
+  // Approve: only sets APROVADA, NO stock exit
   const handleApprove = async (sol: Solicitacao) => {
     setProcessing(true);
     try {
@@ -128,23 +146,17 @@ export default function Solicitacoes() {
         .eq('id', sol.id);
       if (error) throw error;
 
-      const { error: movError } = await supabase
-        .from('movimentacoes_estoque')
-        .insert({
-          produto_id: sol.produto_id,
-          quantidade: sol.quantidade,
-          tipo_movimentacao: 'SAIDA',
-          colaborador_id: sol.colaborador_id,
-          empresa_id: sol.empresa_id || null,
-          usuario_id: user?.id,
-          motivo: `Aprovação solicitação - ${sol.motivo}`,
-          observacao: `Solicitação ${sol.id.slice(0, 8)}`,
-        } as any);
-      if (movError) throw movError;
-
       await insertAuditLog('SOLICITACAO_APROVADA', sol.id, sol.empresa_id);
 
-      toast({ title: 'Solicitação aprovada!', description: 'Estoque atualizado automaticamente.' });
+      // Send email notification
+      await sendNotificationEmail(
+        sol.colaborador,
+        sol.id,
+        'Solicitação de EPI aprovada',
+        `<p>Sua solicitação de <strong>${sol.produto?.nome || 'EPI'}</strong> (Qtde: ${sol.quantidade}) foi <strong>aprovada</strong> e será separada pelo estoque.</p><p>Próximo passo: aguarde a separação e disponibilização do item.</p>`
+      );
+
+      toast({ title: 'Solicitação aprovada!', description: 'O colaborador será notificado.' });
       setDetailOpen(false);
       setObservacaoAprovacao('');
       await load();
@@ -172,6 +184,52 @@ export default function Solicitacoes() {
       toast({ title: 'Solicitação rejeitada' });
       setDetailOpen(false);
       setMotivoRejeicao('');
+      await load();
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+    setProcessing(false);
+  };
+
+  // Separar: creates SAIDA + sets SEPARADO
+  const handleSeparar = async (sol: Solicitacao) => {
+    setProcessing(true);
+    try {
+      // Create stock exit
+      const { error: movError } = await supabase
+        .from('movimentacoes_estoque')
+        .insert({
+          produto_id: sol.produto_id,
+          quantidade: sol.quantidade,
+          tipo_movimentacao: 'SAIDA',
+          colaborador_id: sol.colaborador_id,
+          empresa_id: sol.empresa_id || null,
+          usuario_id: user?.id,
+          solicitacao_id: sol.id,
+          motivo: `Separação - ${sol.produto?.nome || 'EPI'}`,
+          observacao: `Solicitação #${sol.id.slice(0, 8)}`,
+        } as any);
+      if (movError) throw movError;
+
+      // Update status to SEPARADO
+      const { error } = await supabase
+        .from('solicitacoes_epi')
+        .update({ status: 'SEPARADO' } as any)
+        .eq('id', sol.id);
+      if (error) throw error;
+
+      await insertAuditLog('SOLICITACAO_SEPARADO', sol.id, sol.empresa_id);
+
+      // Send email notification
+      await sendNotificationEmail(
+        sol.colaborador,
+        sol.id,
+        'Atualização da sua solicitação de EPI',
+        `<p>O item <strong>${sol.produto?.nome || 'EPI'}</strong> da sua solicitação já foi <strong>separado do estoque</strong> e está disponível para retirada.</p><p>Aguarde a entrega e a confirmação de recebimento.</p>`
+      );
+
+      toast({ title: '✅ Item separado!', description: 'Baixa no estoque registrada. Colaborador notificado.' });
+      setDetailOpen(false);
       await load();
     } catch (err: any) {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
@@ -210,8 +268,7 @@ export default function Solicitacoes() {
     ENVIADA: { icon: Clock, color: 'text-[hsl(var(--status-warning))]', bg: 'bg-[hsl(var(--status-warning-bg))]', label: 'Enviada', accent: 'border-l-[hsl(var(--status-warning))]' },
     APROVADA: { icon: CheckCircle, color: 'text-[hsl(var(--status-ok))]', bg: 'bg-[hsl(var(--status-ok-bg))]', label: 'Aprovada', accent: 'border-l-[hsl(var(--status-ok))]' },
     REPROVADA: { icon: XCircle, color: 'text-[hsl(var(--status-danger))]', bg: 'bg-[hsl(var(--status-danger-bg))]', label: 'Reprovada', accent: 'border-l-[hsl(var(--status-danger))]' },
-    EM_SEPARACAO: { icon: Package, color: 'text-[hsl(210,70%,55%)]', bg: 'bg-[hsl(210,70%,55%)]/10', label: 'Em Separação', accent: 'border-l-[hsl(210,70%,55%)]' },
-    BAIXADA_NO_ESTOQUE: { icon: Package, color: 'text-[hsl(280,60%,55%)]', bg: 'bg-[hsl(280,60%,55%)]/10', label: 'Baixada no Estoque', accent: 'border-l-[hsl(280,60%,55%)]' },
+    SEPARADO: { icon: Package, color: 'text-[hsl(280,60%,55%)]', bg: 'bg-[hsl(280,60%,55%)]/10', label: 'Separado', accent: 'border-l-[hsl(280,60%,55%)]' },
     ENTREGUE: { icon: Package, color: 'text-primary', bg: 'bg-primary/10', label: 'Entregue', accent: 'border-l-primary' },
     CONFIRMADA: { icon: CheckCircle, color: 'text-[hsl(var(--status-ok))]', bg: 'bg-[hsl(var(--status-ok-bg))]', label: 'Confirmada', accent: 'border-l-[hsl(var(--status-ok))]' },
   };
@@ -220,7 +277,7 @@ export default function Solicitacoes() {
     ENVIADA: allSolicitacoes.filter(s => s.status === 'ENVIADA').length,
     APROVADA: allSolicitacoes.filter(s => s.status === 'APROVADA').length,
     REPROVADA: allSolicitacoes.filter(s => s.status === 'REPROVADA').length,
-    EM_SEPARACAO: allSolicitacoes.filter(s => s.status === 'EM_SEPARACAO').length,
+    SEPARADO: allSolicitacoes.filter(s => s.status === 'SEPARADO').length,
     ENTREGUE: allSolicitacoes.filter(s => s.status === 'ENTREGUE').length,
     CONFIRMADA: allSolicitacoes.filter(s => s.status === 'CONFIRMADA').length,
     todos: allSolicitacoes.length,
@@ -247,7 +304,7 @@ export default function Solicitacoes() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
-        {(['ENVIADA', 'APROVADA', 'REPROVADA', 'EM_SEPARACAO', 'ENTREGUE', 'CONFIRMADA', 'todos'] as const).map(s => {
+        {(['ENVIADA', 'APROVADA', 'REPROVADA', 'SEPARADO', 'ENTREGUE', 'CONFIRMADA', 'todos'] as const).map(s => {
           const cfg = s === 'todos'
             ? { icon: FileText, color: 'text-muted-foreground', bg: 'bg-muted', label: 'Todos' }
             : statusConfig[s];
@@ -345,48 +402,26 @@ export default function Solicitacoes() {
                 onClick={() => { setSelected(s); setDetailOpen(true); setMotivoRejeicao(''); setObservacaoAprovacao(''); }}
               >
                 <div className="flex items-center gap-4 p-4">
-                  {/* Avatar */}
                   <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
                     {initials}
                   </div>
-
-                  {/* Main info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] text-muted-foreground font-mono shrink-0">#{s.id.slice(0, 8).toUpperCase()}</span>
                       <p className="text-sm font-semibold text-foreground truncate">{s.colaborador?.nome || '—'}</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-[11px] text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Package size={11} />
-                        {s.produto?.nome || '—'}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Building2 size={11} />
-                        {s.empresa_nome || '—'}
-                      </span>
+                      <span className="flex items-center gap-1"><Package size={11} />{s.produto?.nome || '—'}</span>
+                      <span className="flex items-center gap-1"><Building2 size={11} />{s.empresa_nome || '—'}</span>
                       <span>Qtd: {s.quantidade}</span>
                       {s.aprovador_nome && (
-                        <span className="hidden sm:flex items-center gap-1">
-                          <User size={11} />
-                          Aprovado por: {s.aprovador_nome}
-                        </span>
-                      )}
-                      {!s.aprovador_nome && s.aprovado_por && (
-                        <span className="hidden sm:inline">Aprovado por: —</span>
-                      )}
-                      {s.aprovado_em && (
-                        <span className="hidden lg:inline">
-                          Aprovação: {formatDate(s.aprovado_em)}
-                        </span>
+                        <span className="hidden sm:flex items-center gap-1"><User size={11} />Aprovado por: {s.aprovador_nome}</span>
                       )}
                     </div>
                   </div>
-
-                  {/* Right side: status + date */}
                   <div className="flex flex-col items-end gap-1.5 shrink-0">
                     <div className="flex items-center gap-1">
-                      {['ENTREGUE', 'CONFIRMADA', 'EM_SEPARACAO', 'BAIXADA_NO_ESTOQUE'].includes(s.status) && (
+                      {['SEPARADO', 'ENTREGUE', 'CONFIRMADA'].includes(s.status) && (
                         <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold", statusConfig.APROVADA.bg, statusConfig.APROVADA.color)}>
                           <CheckCircle size={12} />
                           Aprovada
@@ -402,7 +437,6 @@ export default function Solicitacoes() {
                       {formatDate(s.created_at)}
                     </span>
                   </div>
-
                   <ArrowRight size={14} className="text-muted-foreground/30 shrink-0 hidden sm:block" />
                 </div>
               </div>
@@ -431,7 +465,7 @@ export default function Solicitacoes() {
                 const Icon = cfg.icon;
                 return (
                   <div className="flex items-center gap-2">
-                    {['ENTREGUE', 'CONFIRMADA', 'EM_SEPARACAO', 'BAIXADA_NO_ESTOQUE'].includes(selected.status) && (
+                    {['SEPARADO', 'ENTREGUE', 'CONFIRMADA'].includes(selected.status) && (
                       <div className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold", statusConfig.APROVADA.bg, statusConfig.APROVADA.color)}>
                         <CheckCircle size={14} /> Aprovada
                       </div>
@@ -442,6 +476,12 @@ export default function Solicitacoes() {
                   </div>
                 );
               })()}
+
+              {/* Timeline */}
+              <div className="rounded-xl border bg-muted/20 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Linha do tempo</p>
+                <SolicitacaoTimeline status={selected.status} />
+              </div>
 
               {/* Colaborador info */}
               <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
@@ -503,7 +543,7 @@ export default function Solicitacoes() {
               </div>
 
               {/* Aprovação block */}
-              {(selected.aprovado_por || selected.status === 'APROVADA' || selected.status === 'REPROVADA' || ['EM_SEPARACAO', 'BAIXADA_NO_ESTOQUE', 'ENTREGUE', 'CONFIRMADA'].includes(selected.status)) && (
+              {(selected.aprovado_por || ['APROVADA', 'REPROVADA', 'SEPARADO', 'ENTREGUE', 'CONFIRMADA'].includes(selected.status)) && (
                 <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
                     <Shield size={11} /> Aprovação
@@ -533,7 +573,7 @@ export default function Solicitacoes() {
                 </div>
               )}
 
-              {/* Selfie + Signature side by side */}
+              {/* Selfie + Signature */}
               {(selected.selfie_base64 || selected.assinatura_base64) && (
                 <div className="grid grid-cols-2 gap-3">
                   {selected.selfie_base64 && (
@@ -564,7 +604,7 @@ export default function Solicitacoes() {
                 )}
               </div>
 
-              {/* Actions for ENVIADA (pending approval) */}
+              {/* Actions for ENVIADA */}
               {selected.status === 'ENVIADA' && (
                 <div className="border-t pt-4 space-y-3">
                   <Textarea
@@ -594,32 +634,21 @@ export default function Solicitacoes() {
                 </div>
               )}
 
-              {/* Actions for APROVADA - move to EM_SEPARACAO */}
+              {/* Actions for APROVADA - separate stock */}
               {selected.status === 'APROVADA' && (
                 <div className="border-t pt-4">
-                  <p className="text-xs text-muted-foreground mb-3">Aprovada. Inicie a separação do item.</p>
-                  <Button className="w-full gap-1.5" onClick={() => handleStatusTransition(selected, 'EM_SEPARACAO', 'SOLICITACAO_EM_SEPARACAO', 'Status atualizado para Em Separação')} disabled={processing}>
+                  <p className="text-xs text-muted-foreground mb-3">Aprovada. Separe o item e registre a baixa no estoque.</p>
+                  <Button className="w-full gap-1.5" onClick={() => handleSeparar(selected)} disabled={processing}>
                     {processing ? <Loader2 size={15} className="animate-spin" /> : <Package size={15} />}
-                    Iniciar Separação
+                    Separar e Dar Baixa no Estoque
                   </Button>
                 </div>
               )}
 
-              {/* Actions for EM_SEPARACAO - move to BAIXADA_NO_ESTOQUE */}
-              {selected.status === 'EM_SEPARACAO' && (
+              {/* Actions for SEPARADO - confirm delivery */}
+              {selected.status === 'SEPARADO' && (
                 <div className="border-t pt-4">
-                  <p className="text-xs text-muted-foreground mb-3">Item em separação. Confirme a baixa no estoque.</p>
-                  <Button className="w-full gap-1.5" onClick={() => handleStatusTransition(selected, 'BAIXADA_NO_ESTOQUE', 'SOLICITACAO_BAIXADA_ESTOQUE', 'Baixa no estoque registrada')} disabled={processing}>
-                    {processing ? <Loader2 size={15} className="animate-spin" /> : <Package size={15} />}
-                    Confirmar Baixa no Estoque
-                  </Button>
-                </div>
-              )}
-
-              {/* Actions for BAIXADA_NO_ESTOQUE - confirm delivery */}
-              {selected.status === 'BAIXADA_NO_ESTOQUE' && (
-                <div className="border-t pt-4">
-                  <p className="text-xs text-muted-foreground mb-3">Estoque baixado. Confirme a entrega ao colaborador.</p>
+                  <p className="text-xs text-muted-foreground mb-3">Item separado. Confirme a entrega ao colaborador.</p>
                   <Button className="w-full gap-1.5" onClick={() => handleDeliver(selected)} disabled={processing}>
                     {processing ? <Loader2 size={15} className="animate-spin" /> : <Package size={15} />}
                     Confirmar Entrega
@@ -630,7 +659,7 @@ export default function Solicitacoes() {
               {/* Actions for ENTREGUE - confirm receipt */}
               {selected.status === 'ENTREGUE' && (
                 <div className="border-t pt-4">
-                  <p className="text-xs text-muted-foreground mb-3">Entrega realizada. Aguardando confirmação do colaborador.</p>
+                  <p className="text-xs text-muted-foreground mb-3">Entrega realizada. Aguardando confirmação do colaborador (assinatura digital).</p>
                   <Button className="w-full gap-1.5" onClick={() => handleStatusTransition(selected, 'CONFIRMADA', 'SOLICITACAO_CONFIRMADA', '✅ Recebimento confirmado!')} disabled={processing}>
                     {processing ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle size={15} />}
                     Confirmar Recebimento
@@ -650,6 +679,78 @@ export default function Solicitacoes() {
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/* ── Timeline Component ── */
+const TIMELINE_STEPS = [
+  { key: 'ENVIADA', label: 'Enviada' },
+  { key: 'APROVADA', label: 'Aprovada' },
+  { key: 'SEPARADO', label: 'Separado' },
+  { key: 'ENTREGUE', label: 'Entregue' },
+  { key: 'CONFIRMADA', label: 'Confirmada' },
+];
+
+function SolicitacaoTimeline({ status }: { status: string }) {
+  if (status === 'REPROVADA') {
+    return (
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          <div className="w-5 h-5 rounded-full bg-[hsl(var(--status-ok-bg))] flex items-center justify-center">
+            <CheckCircle size={12} className="text-[hsl(var(--status-ok))]" />
+          </div>
+          <span className="text-[11px] font-medium text-foreground">Enviada</span>
+        </div>
+        <div className="flex-1 h-px bg-border" />
+        <div className="flex items-center gap-1.5">
+          <div className="w-5 h-5 rounded-full bg-[hsl(var(--status-danger-bg))] flex items-center justify-center">
+            <XCircle size={12} className="text-[hsl(var(--status-danger))]" />
+          </div>
+          <span className="text-[11px] font-medium text-[hsl(var(--status-danger))]">Reprovada</span>
+        </div>
+      </div>
+    );
+  }
+
+  const currentIndex = TIMELINE_STEPS.findIndex(s => s.key === status);
+
+  return (
+    <div className="flex items-center gap-1">
+      {TIMELINE_STEPS.map((step, i) => {
+        const isCompleted = i <= currentIndex;
+        const isCurrent = i === currentIndex;
+        return (
+          <div key={step.key} className="flex items-center gap-1 flex-1">
+            <div className="flex flex-col items-center gap-1 min-w-0 flex-1">
+              <div className={cn(
+                "w-5 h-5 rounded-full flex items-center justify-center transition-colors shrink-0",
+                isCompleted
+                  ? "bg-[hsl(var(--status-ok-bg))]"
+                  : "bg-muted"
+              )}>
+                {isCompleted ? (
+                  <CheckCircle size={12} className="text-[hsl(var(--status-ok))]" />
+                ) : (
+                  <div className="w-2 h-2 rounded-full bg-muted-foreground/30" />
+                )}
+              </div>
+              <span className={cn(
+                "text-[9px] font-medium text-center leading-tight",
+                isCurrent ? "text-foreground font-bold" : isCompleted ? "text-muted-foreground" : "text-muted-foreground/50"
+              )}>
+                {step.label}
+              </span>
+            </div>
+            {i < TIMELINE_STEPS.length - 1 && (
+              <div className={cn(
+                "h-px flex-1 min-w-2 mt-[-12px]",
+                i < currentIndex ? "bg-[hsl(var(--status-ok))]" : "bg-border"
+              )} />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -457,6 +457,7 @@ export type Database = {
           quantidade: number
           referencia_nf: string | null
           selfie_base64: string | null
+          solicitacao_id: string | null
           tipo_movimentacao: Database["public"]["Enums"]["tipo_movimentacao"]
           usuario_id: string | null
         }
@@ -475,6 +476,7 @@ export type Database = {
           quantidade: number
           referencia_nf?: string | null
           selfie_base64?: string | null
+          solicitacao_id?: string | null
           tipo_movimentacao: Database["public"]["Enums"]["tipo_movimentacao"]
           usuario_id?: string | null
         }
@@ -493,6 +495,7 @@ export type Database = {
           quantidade?: number
           referencia_nf?: string | null
           selfie_base64?: string | null
+          solicitacao_id?: string | null
           tipo_movimentacao?: Database["public"]["Enums"]["tipo_movimentacao"]
           usuario_id?: string | null
         }
@@ -516,6 +519,58 @@ export type Database = {
             columns: ["produto_id"]
             isOneToOne: false
             referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimentacoes_estoque_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "solicitacoes_epi"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notificacoes: {
+        Row: {
+          colaborador_id: string
+          created_at: string
+          id: string
+          lida: boolean
+          mensagem: string
+          solicitacao_id: string | null
+          titulo: string
+        }
+        Insert: {
+          colaborador_id: string
+          created_at?: string
+          id?: string
+          lida?: boolean
+          mensagem: string
+          solicitacao_id?: string | null
+          titulo: string
+        }
+        Update: {
+          colaborador_id?: string
+          created_at?: string
+          id?: string
+          lida?: boolean
+          mensagem?: string
+          solicitacao_id?: string | null
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notificacoes_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "colaboradores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notificacoes_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "solicitacoes_epi"
             referencedColumns: ["id"]
           },
         ]
