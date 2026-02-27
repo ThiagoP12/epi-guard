@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Building2, MapPin, Phone, Mail, GitBranch, CheckCircle, Plus } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Building2, MapPin, Phone, Mail, GitBranch, CheckCircle, Plus, Users } from 'lucide-react';
 import { useEmpresa, type Empresa } from '@/contexts/EmpresaContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,6 +20,21 @@ export default function Revendas() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createNome, setCreateNome] = useState('');
   const [createMatrizId, setCreateMatrizId] = useState<string | null>(null);
+  const [userCounts, setUserCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const loadCounts = async () => {
+      const { data } = await supabase.from('user_empresas').select('empresa_id');
+      if (data) {
+        const counts: Record<string, number> = {};
+        data.forEach(row => {
+          counts[row.empresa_id] = (counts[row.empresa_id] || 0) + 1;
+        });
+        setUserCounts(counts);
+      }
+    };
+    loadCounts();
+  }, [empresas]);
 
   const isAdmin = role === 'admin' || role === 'super_admin';
   const matrices = empresas.filter(e => !e.matriz_id);
@@ -135,6 +150,7 @@ export default function Revendas() {
                         {matriz.telefone && <span className="flex items-center gap-0.5"><Phone size={10} />{matriz.telefone}</span>}
                         {matriz.email && <span className="flex items-center gap-0.5"><Mail size={10} />{matriz.email}</span>}
                         {!matriz.cnpj && !matriz.endereco && <span className="text-muted-foreground/50 italic">Dados não preenchidos</span>}
+                        <span className="flex items-center gap-0.5"><Users size={10} />{userCounts[matriz.id] || 0} usuário(s)</span>
                       </div>
                     </div>
                   </div>
@@ -185,6 +201,7 @@ export default function Revendas() {
                           <p className="text-[10px] text-muted-foreground/60 mt-0.5">
                             Filial de {matriz.nome}
                             {filial.cnpj && ` • ${filial.cnpj}`}
+                            {` • ${userCounts[filial.id] || 0} usuário(s)`}
                           </p>
                         </div>
                       </div>
