@@ -1,23 +1,21 @@
 
 
-## Plan: Integrate Unidades (Revendas) Page
+## Analysis: User-Unit Relationship
 
-The `empresas` table already has the required fields (`id`, `nome`, `ativo`, `matriz_id`, `cnpj`, etc.), so no database migration is needed. The `Revendas.tsx` page exists but is **not routed or accessible** — it's missing from both `App.tsx` routes and the sidebar menu.
+The relationship `USUARIO_UNIDADE` already exists in the database as the `user_empresas` table:
 
-### Changes
+| Column | Type |
+|--------|------|
+| `id` | uuid PK |
+| `user_id` | uuid |
+| `empresa_id` | uuid (= unidade_id) |
 
-1. **Add route in `App.tsx`** — Import `Revendas` and add `<Route path="/revendas" element={<Revendas />} />` inside the Layout routes.
+RLS policies are already configured (super_admin full access, admin manages within own empresas, users read own links).
 
-2. **Add sidebar menu item in `Layout.tsx`** — Add `{ label: 'Unidades', icon: Building2, path: '/revendas', phase: 1 }` to `menuItems` array (after Dashboard or Configurações).
+The UI is also already implemented in the **Usuários** page (`src/pages/Usuarios.tsx`):
+- **Create dialog**: checkboxes to assign "Revendas com acesso" on user creation
+- **Edit dialog**: checkboxes to update empresa/unidade assignments with "Salvar Revendas" button
+- Backend handled via `manage-user` edge function (`update_empresas` action)
 
-3. **Enhance `Revendas.tsx`** — Add CRUD capabilities:
-   - **Create new unit** (filial): button + dialog with nome field, auto-links to selected matriz via `matriz_id`. Only for admin/super_admin.
-   - **Toggle ativo**: switch on each card to activate/deactivate units.
-   - **Edit nome** (currently disabled): allow admin/super_admin to edit the name.
-   - Rename page title from "Revendas" to "Unidades" for consistency with the spec.
-
-### Files affected
-- `src/App.tsx` — add route
-- `src/components/Layout.tsx` — add menu item
-- `src/pages/Revendas.tsx` — add create dialog, ativo toggle, allow name editing
+**Conclusion**: No changes needed — this feature is fully implemented. The `user_empresas` table is the `USUARIO_UNIDADE` relation, and the admin UI already allows linking/unlinking users to units.
 
