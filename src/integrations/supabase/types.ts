@@ -604,6 +604,7 @@ export type Database = {
           colaborador_id: string
           cpf_colaborador: string | null
           created_at: string
+          criado_por_usuario_id: string | null
           declaracao_aceita: boolean
           email_colaborador: string | null
           empresa_id: string | null
@@ -615,6 +616,7 @@ export type Database = {
           motivo: string
           motivo_rejeicao: string | null
           observacao: string | null
+          observacao_aprovacao: string | null
           pdf_hash: string | null
           produto_id: string
           quantidade: number
@@ -631,6 +633,7 @@ export type Database = {
           colaborador_id: string
           cpf_colaborador?: string | null
           created_at?: string
+          criado_por_usuario_id?: string | null
           declaracao_aceita?: boolean
           email_colaborador?: string | null
           empresa_id?: string | null
@@ -642,6 +645,7 @@ export type Database = {
           motivo?: string
           motivo_rejeicao?: string | null
           observacao?: string | null
+          observacao_aprovacao?: string | null
           pdf_hash?: string | null
           produto_id: string
           quantidade?: number
@@ -658,6 +662,7 @@ export type Database = {
           colaborador_id?: string
           cpf_colaborador?: string | null
           created_at?: string
+          criado_por_usuario_id?: string | null
           declaracao_aceita?: boolean
           email_colaborador?: string | null
           empresa_id?: string | null
@@ -669,6 +674,7 @@ export type Database = {
           motivo?: string
           motivo_rejeicao?: string | null
           observacao?: string | null
+          observacao_aprovacao?: string | null
           pdf_hash?: string | null
           produto_id?: string
           quantidade?: number

@@ -39,11 +39,12 @@ export default function Solicitacoes() {
   const [solicitacoes, setSolicitacoes] = useState<Solicitacao[]>([]);
   const [allSolicitacoes, setAllSolicitacoes] = useState<Solicitacao[]>([]);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('pendente');
+  const [statusFilter, setStatusFilter] = useState('ENVIADA');
   const [loading, setLoading] = useState(true);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selected, setSelected] = useState<Solicitacao | null>(null);
   const [motivoRejeicao, setMotivoRejeicao] = useState('');
+  const [observacaoAprovacao, setObservacaoAprovacao] = useState('');
   const [processing, setProcessing] = useState(false);
 
   const load = async () => {
@@ -91,7 +92,12 @@ export default function Solicitacoes() {
       // 1. Update status to approved
       const { error } = await supabase
         .from('solicitacoes_epi')
-        .update({ status: 'aprovado', aprovado_por: user?.id, aprovado_em: new Date().toISOString() })
+        .update({ 
+          status: 'APROVADA', 
+          aprovado_por: user?.id, 
+          aprovado_em: new Date().toISOString(),
+          observacao_aprovacao: observacaoAprovacao.trim() || null,
+        } as any)
         .eq('id', sol.id);
       if (error) throw error;
 
@@ -112,6 +118,7 @@ export default function Solicitacoes() {
 
       toast({ title: 'Solicitação aprovada!', description: 'Estoque atualizado automaticamente.' });
       setDetailOpen(false);
+      setObservacaoAprovacao('');
       await load();
     } catch (err: any) {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
@@ -128,7 +135,7 @@ export default function Solicitacoes() {
     try {
       const { error } = await supabase
         .from('solicitacoes_epi')
-        .update({ status: 'rejeitado', aprovado_por: user?.id, aprovado_em: new Date().toISOString(), motivo_rejeicao: motivoRejeicao })
+        .update({ status: 'REPROVADA', aprovado_por: user?.id, aprovado_em: new Date().toISOString(), motivo_rejeicao: motivoRejeicao })
         .eq('id', sol.id);
       if (error) throw error;
       toast({ title: 'Solicitação rejeitada' });
@@ -146,7 +153,7 @@ export default function Solicitacoes() {
     try {
       const { error } = await supabase
         .from('solicitacoes_epi')
-        .update({ status: 'entregue' })
+        .update({ status: 'ENTREGUE' })
         .eq('id', sol.id);
       if (error) throw error;
       toast({ title: '✅ Entrega confirmada!' });
@@ -165,17 +172,23 @@ export default function Solicitacoes() {
   );
 
   const statusConfig: Record<string, { icon: typeof Clock; color: string; bg: string; label: string; accent: string }> = {
-    pendente: { icon: Clock, color: 'text-[hsl(var(--status-warning))]', bg: 'bg-[hsl(var(--status-warning-bg))]', label: 'Pendente', accent: 'border-l-[hsl(var(--status-warning))]' },
-    aprovado: { icon: CheckCircle, color: 'text-[hsl(var(--status-ok))]', bg: 'bg-[hsl(var(--status-ok-bg))]', label: 'Aprovado', accent: 'border-l-[hsl(var(--status-ok))]' },
-    rejeitado: { icon: XCircle, color: 'text-[hsl(var(--status-danger))]', bg: 'bg-[hsl(var(--status-danger-bg))]', label: 'Rejeitado', accent: 'border-l-[hsl(var(--status-danger))]' },
-    entregue: { icon: Package, color: 'text-primary', bg: 'bg-primary/10', label: 'Entregue', accent: 'border-l-primary' },
+    CRIADA: { icon: Clock, color: 'text-muted-foreground', bg: 'bg-muted', label: 'Criada', accent: 'border-l-muted-foreground' },
+    ENVIADA: { icon: Clock, color: 'text-[hsl(var(--status-warning))]', bg: 'bg-[hsl(var(--status-warning-bg))]', label: 'Enviada', accent: 'border-l-[hsl(var(--status-warning))]' },
+    APROVADA: { icon: CheckCircle, color: 'text-[hsl(var(--status-ok))]', bg: 'bg-[hsl(var(--status-ok-bg))]', label: 'Aprovada', accent: 'border-l-[hsl(var(--status-ok))]' },
+    REPROVADA: { icon: XCircle, color: 'text-[hsl(var(--status-danger))]', bg: 'bg-[hsl(var(--status-danger-bg))]', label: 'Reprovada', accent: 'border-l-[hsl(var(--status-danger))]' },
+    EM_SEPARACAO: { icon: Package, color: 'text-[hsl(210,70%,55%)]', bg: 'bg-[hsl(210,70%,55%)]/10', label: 'Em Separação', accent: 'border-l-[hsl(210,70%,55%)]' },
+    BAIXADA_NO_ESTOQUE: { icon: Package, color: 'text-[hsl(280,60%,55%)]', bg: 'bg-[hsl(280,60%,55%)]/10', label: 'Baixada no Estoque', accent: 'border-l-[hsl(280,60%,55%)]' },
+    ENTREGUE: { icon: Package, color: 'text-primary', bg: 'bg-primary/10', label: 'Entregue', accent: 'border-l-primary' },
+    CONFIRMADA: { icon: CheckCircle, color: 'text-[hsl(var(--status-ok))]', bg: 'bg-[hsl(var(--status-ok-bg))]', label: 'Confirmada', accent: 'border-l-[hsl(var(--status-ok))]' },
   };
 
-  const counts = {
-    pendente: allSolicitacoes.filter(s => s.status === 'pendente').length,
-    aprovado: allSolicitacoes.filter(s => s.status === 'aprovado').length,
-    rejeitado: allSolicitacoes.filter(s => s.status === 'rejeitado').length,
-    entregue: allSolicitacoes.filter(s => s.status === 'entregue').length,
+  const counts: Record<string, number> = {
+    ENVIADA: allSolicitacoes.filter(s => s.status === 'ENVIADA').length,
+    APROVADA: allSolicitacoes.filter(s => s.status === 'APROVADA').length,
+    REPROVADA: allSolicitacoes.filter(s => s.status === 'REPROVADA').length,
+    EM_SEPARACAO: allSolicitacoes.filter(s => s.status === 'EM_SEPARACAO').length,
+    ENTREGUE: allSolicitacoes.filter(s => s.status === 'ENTREGUE').length,
+    CONFIRMADA: allSolicitacoes.filter(s => s.status === 'CONFIRMADA').length,
     todos: allSolicitacoes.length,
   };
 
@@ -199,8 +212,8 @@ export default function Solicitacoes() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-        {(['pendente', 'aprovado', 'rejeitado', 'entregue', 'todos'] as const).map(s => {
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+        {(['ENVIADA', 'APROVADA', 'REPROVADA', 'EM_SEPARACAO', 'ENTREGUE', 'CONFIRMADA', 'todos'] as const).map(s => {
           const cfg = s === 'todos'
             ? { icon: FileText, color: 'text-muted-foreground', bg: 'bg-muted', label: 'Todos' }
             : statusConfig[s];
@@ -235,7 +248,7 @@ export default function Solicitacoes() {
               )}>
                 {loading ? '—' : count}
               </p>
-              {s === 'pendente' && count > 0 && (
+              {s === 'ENVIADA' && count > 0 && (
                 <span className="absolute top-3 right-3 w-2 h-2 rounded-full bg-[hsl(var(--status-warning))] animate-pulse" />
               )}
             </button>
@@ -285,7 +298,7 @@ export default function Solicitacoes() {
       ) : (
         <div className="space-y-2">
           {filtered.map(s => {
-            const cfg = statusConfig[s.status] || statusConfig.pendente;
+            const cfg = statusConfig[s.status] || statusConfig.ENVIADA;
             const Icon = cfg.icon;
             const initials = s.colaborador?.nome?.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() || '?';
             return (
@@ -295,7 +308,7 @@ export default function Solicitacoes() {
                   "bg-card rounded-xl border border-l-[3px] shadow-sm card-interactive cursor-pointer overflow-hidden",
                   cfg.accent
                 )}
-                onClick={() => { setSelected(s); setDetailOpen(true); setMotivoRejeicao(''); }}
+                onClick={() => { setSelected(s); setDetailOpen(true); setMotivoRejeicao(''); setObservacaoAprovacao(''); }}
               >
                 <div className="flex items-center gap-4 p-4">
                   {/* Avatar */}
@@ -328,10 +341,10 @@ export default function Solicitacoes() {
                   {/* Right side: status + date */}
                   <div className="flex flex-col items-end gap-1.5 shrink-0">
                     <div className="flex items-center gap-1">
-                      {s.status === 'entregue' && (
-                        <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold", statusConfig.aprovado.bg, statusConfig.aprovado.color)}>
+                      {['ENTREGUE', 'CONFIRMADA', 'EM_SEPARACAO', 'BAIXADA_NO_ESTOQUE'].includes(s.status) && (
+                        <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold", statusConfig.APROVADA.bg, statusConfig.APROVADA.color)}>
                           <CheckCircle size={12} />
-                          Aprovado
+                          Aprovada
                         </div>
                       )}
                       <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold", cfg.bg, cfg.color)}>
@@ -368,13 +381,13 @@ export default function Solicitacoes() {
             <div className="space-y-5 mt-1">
               {/* Status badges */}
               {(() => {
-                const cfg = statusConfig[selected.status] || statusConfig.pendente;
+                const cfg = statusConfig[selected.status] || statusConfig.ENVIADA;
                 const Icon = cfg.icon;
                 return (
                   <div className="flex items-center gap-2">
-                    {selected.status === 'entregue' && (
-                      <div className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold", statusConfig.aprovado.bg, statusConfig.aprovado.color)}>
-                        <CheckCircle size={14} /> Aprovado
+                    {['ENTREGUE', 'CONFIRMADA', 'EM_SEPARACAO', 'BAIXADA_NO_ESTOQUE'].includes(selected.status) && (
+                      <div className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold", statusConfig.APROVADA.bg, statusConfig.APROVADA.color)}>
+                        <CheckCircle size={14} /> Aprovada
                       </div>
                     )}
                     <div className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold", cfg.bg, cfg.color)}>
@@ -470,13 +483,20 @@ export default function Solicitacoes() {
                 )}
               </div>
 
-              {/* Actions for pending */}
-              {selected.status === 'pendente' && (
+              {/* Actions for ENVIADA (pending approval) */}
+              {selected.status === 'ENVIADA' && (
                 <div className="border-t pt-4 space-y-3">
+                  <Textarea
+                    value={observacaoAprovacao}
+                    onChange={e => setObservacaoAprovacao(e.target.value)}
+                    placeholder="Observação de aprovação (opcional)"
+                    className="text-xs resize-none"
+                    rows={2}
+                  />
                   <Textarea
                     value={motivoRejeicao}
                     onChange={e => setMotivoRejeicao(e.target.value)}
-                    placeholder="Motivo da rejeição (obrigatório para rejeitar)"
+                    placeholder="Motivo da rejeição (obrigatório para reprovar)"
                     className="text-xs resize-none"
                     rows={2}
                   />
@@ -487,25 +507,72 @@ export default function Solicitacoes() {
                     </Button>
                     <Button variant="destructive" className="flex-1 gap-1.5" onClick={() => handleReject(selected)} disabled={processing}>
                       {processing ? <Loader2 size={15} className="animate-spin" /> : <XCircle size={15} />}
-                      Rejeitar
+                      Reprovar
                     </Button>
                   </div>
                 </div>
               )}
 
-              {/* Actions for approved - confirm delivery */}
-              {selected.status === 'aprovado' && (
+              {/* Actions for APROVADA - move to EM_SEPARACAO */}
+              {selected.status === 'APROVADA' && (
                 <div className="border-t pt-4">
-                  <p className="text-xs text-muted-foreground mb-3">O item foi aprovado. Confirme se a entrega foi realizada ao colaborador.</p>
-                  <div className="flex gap-2">
-                    <Button className="flex-1 gap-1.5" onClick={() => handleDeliver(selected)} disabled={processing}>
-                      {processing ? <Loader2 size={15} className="animate-spin" /> : <Package size={15} />}
-                      Confirmar Entrega
-                    </Button>
-                  </div>
+                  <p className="text-xs text-muted-foreground mb-3">Aprovada. Inicie a separação do item.</p>
+                  <Button className="w-full gap-1.5" onClick={async () => {
+                    setProcessing(true);
+                    await supabase.from('solicitacoes_epi').update({ status: 'EM_SEPARACAO' } as any).eq('id', selected.id);
+                    toast({ title: 'Status atualizado para Em Separação' });
+                    setDetailOpen(false); await load(); setProcessing(false);
+                  }} disabled={processing}>
+                    {processing ? <Loader2 size={15} className="animate-spin" /> : <Package size={15} />}
+                    Iniciar Separação
+                  </Button>
                 </div>
               )}
-              {selected.status !== 'pendente' && selected.motivo_rejeicao && (
+
+              {/* Actions for EM_SEPARACAO - move to BAIXADA_NO_ESTOQUE */}
+              {selected.status === 'EM_SEPARACAO' && (
+                <div className="border-t pt-4">
+                  <p className="text-xs text-muted-foreground mb-3">Item em separação. Confirme a baixa no estoque.</p>
+                  <Button className="w-full gap-1.5" onClick={async () => {
+                    setProcessing(true);
+                    await supabase.from('solicitacoes_epi').update({ status: 'BAIXADA_NO_ESTOQUE' } as any).eq('id', selected.id);
+                    toast({ title: 'Baixa no estoque registrada' });
+                    setDetailOpen(false); await load(); setProcessing(false);
+                  }} disabled={processing}>
+                    {processing ? <Loader2 size={15} className="animate-spin" /> : <Package size={15} />}
+                    Confirmar Baixa no Estoque
+                  </Button>
+                </div>
+              )}
+
+              {/* Actions for BAIXADA_NO_ESTOQUE - confirm delivery */}
+              {selected.status === 'BAIXADA_NO_ESTOQUE' && (
+                <div className="border-t pt-4">
+                  <p className="text-xs text-muted-foreground mb-3">Estoque baixado. Confirme a entrega ao colaborador.</p>
+                  <Button className="w-full gap-1.5" onClick={() => handleDeliver(selected)} disabled={processing}>
+                    {processing ? <Loader2 size={15} className="animate-spin" /> : <Package size={15} />}
+                    Confirmar Entrega
+                  </Button>
+                </div>
+              )}
+
+              {/* Actions for ENTREGUE - confirm receipt */}
+              {selected.status === 'ENTREGUE' && (
+                <div className="border-t pt-4">
+                  <p className="text-xs text-muted-foreground mb-3">Entrega realizada. Aguardando confirmação do colaborador.</p>
+                  <Button className="w-full gap-1.5" onClick={async () => {
+                    setProcessing(true);
+                    await supabase.from('solicitacoes_epi').update({ status: 'CONFIRMADA' } as any).eq('id', selected.id);
+                    toast({ title: '✅ Recebimento confirmado!' });
+                    setDetailOpen(false); await load(); setProcessing(false);
+                  }} disabled={processing}>
+                    {processing ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle size={15} />}
+                    Confirmar Recebimento
+                  </Button>
+                </div>
+              )}
+
+              {selected.status !== 'ENVIADA' && selected.motivo_rejeicao && (
                 <div className="border-t pt-3">
                   <div className="text-xs bg-[hsl(var(--status-danger-bg))] text-[hsl(var(--status-danger))] rounded-xl px-4 py-3">
                     <p className="font-bold text-[10px] uppercase tracking-widest mb-1">Motivo da rejeição</p>

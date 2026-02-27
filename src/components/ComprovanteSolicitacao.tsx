@@ -68,10 +68,14 @@ export default function ComprovanteSolicitacao({ open, onClose, data }: Props) {
   };
 
   const statusLabel: Record<string, string> = {
-    pendente: 'Pendente',
-    aprovado: 'Aprovado',
-    rejeitado: 'Rejeitado',
-    entregue: 'Entregue',
+    CRIADA: 'Criada',
+    ENVIADA: 'Enviada',
+    APROVADA: 'Aprovada',
+    REPROVADA: 'Reprovada',
+    EM_SEPARACAO: 'Em Separação',
+    BAIXADA_NO_ESTOQUE: 'Baixada no Estoque',
+    ENTREGUE: 'Entregue',
+    CONFIRMADA: 'Confirmada',
   };
 
   const hashShort = solicitacao.pdf_hash ? `${solicitacao.pdf_hash.slice(0, 16)}...${solicitacao.pdf_hash.slice(-8)}` : null;

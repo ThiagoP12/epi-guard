@@ -278,7 +278,7 @@ export default function PortalColaborador() {
   };
 
   const selectedProduct = produtos.find(p => p.id === produtoId);
-  const pendingCount = solicitacoes.filter(s => s.status === 'pendente').length;
+  const pendingCount = solicitacoes.filter(s => s.status === 'ENVIADA').length;
 
   if (loading) {
     return (
@@ -310,16 +310,20 @@ export default function PortalColaborador() {
     );
   }
 
-  const statusConfig = {
-    pendente: { icon: Clock, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800', label: 'Pendente' },
-    aprovado: { icon: CheckCircle, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800', label: 'Aprovado' },
-    rejeitado: { icon: XCircle, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800', label: 'Rejeitado' },
-    entregue: { icon: Package, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800', label: 'Entregue' },
+  const statusConfig: Record<string, { icon: typeof Clock; color: string; bg: string; label: string }> = {
+    CRIADA: { icon: Clock, color: 'text-muted-foreground', bg: 'bg-muted border-border', label: 'Criada' },
+    ENVIADA: { icon: Clock, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800', label: 'Enviada' },
+    APROVADA: { icon: CheckCircle, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800', label: 'Aprovada' },
+    REPROVADA: { icon: XCircle, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800', label: 'Reprovada' },
+    EM_SEPARACAO: { icon: Package, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800', label: 'Em Separação' },
+    BAIXADA_NO_ESTOQUE: { icon: Package, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800', label: 'Baixada' },
+    ENTREGUE: { icon: Package, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800', label: 'Entregue' },
+    CONFIRMADA: { icon: CheckCircle, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800', label: 'Confirmada' },
   };
 
   // Notifications: count recent status changes (approved/rejected/delivered in last 24h)
   const recentNotifications = solicitacoes.filter(s => {
-    if (s.status === 'pendente') return false;
+    if (s.status === 'ENVIADA' || s.status === 'CRIADA') return false;
     const created = new Date(s.aprovado_em || s.created_at);
     return differenceInDays(new Date(), created) <= 7;
   });
@@ -327,7 +331,7 @@ export default function PortalColaborador() {
   const navItems = [
     { key: 'solicitar' as const, label: 'Nova Solicitação', shortLabel: 'Solicitar', icon: ClipboardCheck, badge: 0 },
     { key: 'historico' as const, label: 'Minhas Solicitações', shortLabel: 'Histórico', icon: History, badge: pendingCount },
-    { key: 'recebimentos' as const, label: 'Recebimentos', shortLabel: 'Recebidos', icon: Package, badge: entregas.length + solicitacoes.filter(s => s.status === 'entregue').length },
+    { key: 'recebimentos' as const, label: 'Recebimentos', shortLabel: 'Recebidos', icon: Package, badge: entregas.length + solicitacoes.filter(s => ['ENTREGUE', 'CONFIRMADA'].includes(s.status)).length },
     { key: 'perfil' as const, label: 'Meu Perfil', shortLabel: 'Perfil', icon: UserCircle, badge: 0 },
   ];
 
@@ -625,11 +629,11 @@ export default function PortalColaborador() {
           {/* HISTÓRICO */}
           {activeSection === 'historico' && (
             <div className="space-y-3 animate-in fade-in-0 duration-200">
-              {solicitacoes.filter(s => s.status !== 'entregue').length === 0 ? (
+              {solicitacoes.filter(s => !['ENTREGUE', 'CONFIRMADA'].includes(s.status)).length === 0 ? (
                 <EmptyState icon={History} message="Nenhuma solicitação realizada ainda." sub="Suas solicitações de EPI aparecerão aqui." />
               ) : (
-                solicitacoes.filter(s => s.status !== 'entregue').map(s => {
-                  const cfg = statusConfig[s.status as keyof typeof statusConfig] || statusConfig.pendente;
+                solicitacoes.filter(s => !['ENTREGUE', 'CONFIRMADA'].includes(s.status)).map(s => {
+                  const cfg = statusConfig[s.status] || statusConfig.ENVIADA;
                   const StatusIcon = cfg.icon;
                   return (
                     <div key={s.id} className="bg-card rounded-xl border shadow-sm p-4 transition-colors hover:shadow-md">
@@ -656,7 +660,7 @@ export default function PortalColaborador() {
                           {format(new Date(s.created_at), 'dd/MM/yyyy HH:mm')}
                         </span>
                         <div className="flex gap-1.5">
-                          {(s.status === 'aprovado' || s.status === 'entregue') && (
+                          {['APROVADA', 'EM_SEPARACAO', 'BAIXADA_NO_ESTOQUE', 'ENTREGUE', 'CONFIRMADA'].includes(s.status) && (
                             <Button
                               variant="outline"
                               size="sm"
@@ -694,7 +698,7 @@ export default function PortalColaborador() {
                   else totals.push({ nome: item.nome_snapshot, ca: item.ca_snapshot, total: item.quantidade, data_validade: prod?.data_validade || null });
                 }));
                 // From solicitações entregues
-                const solEntregues = solicitacoes.filter(s => s.status === 'entregue');
+                const solEntregues = solicitacoes.filter(s => ['ENTREGUE', 'CONFIRMADA'].includes(s.status));
                 solEntregues.forEach(s => {
                   const nome = s.produto?.nome || 'Produto';
                   const ca = s.produto?.ca || null;
@@ -786,9 +790,9 @@ export default function PortalColaborador() {
 
               {/* Solicitações entregues */}
               {(() => {
-                const solEntregues = solicitacoes.filter(s => s.status === 'entregue');
-                if (solEntregues.length > 0) {
-                  return solEntregues.map(s => (
+                const solEntregues2 = solicitacoes.filter(s => ['ENTREGUE', 'CONFIRMADA'].includes(s.status));
+                if (solEntregues2.length > 0) {
+                  return solEntregues2.map(s => (
                     <div key={`sol-${s.id}`} className="bg-card rounded-xl border shadow-sm overflow-hidden">
                       <div className="flex items-center justify-between px-5 py-3 border-b bg-muted/20">
                         <div className="flex items-center gap-2">
